@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeStep — Pairing</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="app-center">
+    <div class="glass-panel">
+        <h1>Conectare 🔗</h1>
+        <p id="pairing-hint">Introdu numele și codul de la părinte.</p>
+        <input type="text" id="kid-name-input" placeholder="Numele tău (ex: Andrei)">
+        <input type="text" id="pair-code-input" placeholder="Cod pairing (ex: 9Q4PRH)" style="text-transform: uppercase;">
+        <button class="btn-premium" onclick="connect()">CONECTEAZĂ-MĂ! 🚀</button>
+        <button class="btn-secondary" onclick="location.href='avatar.html'">Schimbă avatarul</button>
+    </div>
+    <script src="js/api-config.js"></script>
+    <script>
+        const API = window.SAFESTEP_API;
+
+        if (!localStorage.getItem('kid_avatar')) {
+            window.location.href = 'avatar.html';
+        }
+
+        if (localStorage.getItem('is_paired') === 'true') {
+            document.getElementById('kid-name-input').value = localStorage.getItem('kid_name') || '';
+            document.getElementById('pairing-hint').textContent =
+                'Ești deja conectat! Poți continua misiunea sau reconecta cu un cod nou.';
+        }
+
+        function ensureSessionId() {
+            let sid = localStorage.getItem('safestep_session_id');
+            if (!sid) {
+                sid = 'ss-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+                localStorage.setItem('safestep_session_id', sid);
+            }
+            return sid;
+        }
+
+        async function connect() {
+            const code = document.getElementById('pair-code-input').value.trim().toUpperCase();
+            const kidName = document.getElementById('kid-name-input').value.trim();
+            if (!code || !kidName) {
+                Swal.fire('Atenție!', 'Completează ambele câmpuri!', 'warning');
+                return;
+            }
+            try {
+                const res = await fetch(`${API}/parent/check-code/${code}`);
+                if (!res.ok) {
+                    Swal.fire('Eroare', 'Codul introdus este greșit!', 'error');
+                    return;
+                }
+                const parentData = await res.json();
+                const sessionId = ensureSessionId();
+
+                localStorage.setItem('is_paired', 'true');
+                localStorage.setItem('parent_email', parentData.email);
+                localStorage.setItem('parent_id', String(parentData.id || ''));
+                localStorage.setItem('pairing_code', code);
+                localStorage.setItem('kid_name', kidName);
+
+                await fetch(`${API}/child/position`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        latitude: 45.6427,
+                        longitude: 25.5887,
+                        avatar: localStorage.getItem('kid_avatar') || '🤖',
+                        kidName,
+                        sessionId
+                    })
+                });
+
+                Swal.fire({
+                    title: 'Conectat! 🎉',
+                    text: `Pregătit de aventură, ${kidName}?`,
+                    icon: 'success',
+                    background: '#16162a',
+                    color: '#fff',
+                    timer: 1800,
+                    showConfirmButton: false
+                }).then(() => { window.location.href = 'child_map.html'; });
+            } catch (e) {
+                Swal.fire('Eroare Server', 'Pornește backend-ul Spring Boot (port 8080)!', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

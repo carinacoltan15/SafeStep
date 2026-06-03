@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <title>SafeStep — Mission Control</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/i18n.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body {
+            background: #070712;
+            overflow-x: hidden;
+        }
+        body::before,
+        body::after {
+            content: "";
+            position: fixed;
+            inset: -40%;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                radial-gradient(circle at 18% 20%, rgba(0,255,255,0.08), transparent 45%),
+                radial-gradient(circle at 80% 25%, rgba(138,43,226,0.14), transparent 45%),
+                radial-gradient(circle at 55% 85%, rgba(0,255,127,0.08), transparent 55%),
+                repeating-linear-gradient(115deg, rgba(0,255,255,0.05) 0px, rgba(0,255,255,0.05) 1px, transparent 1px, transparent 26px);
+            opacity: 0.55;
+            animation: parent-bg 22s linear infinite;
+        }
+        body::after {
+            opacity: 0.28;
+            animation-duration: 34s;
+            mix-blend-mode: screen;
+        }
+        @keyframes parent-bg {
+            0%   { transform: translate3d(-2%, -1%, 0) rotate(0deg); }
+            50%  { transform: translate3d(2%,  1%, 0) rotate(7deg);  }
+            100% { transform: translate3d(-2%, -1%, 0) rotate(0deg); }
+        }
+        .app-shell, #danger-overlay { position: relative; z-index: 2; }
+
+        #danger-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(160, 0, 80, 0.88);
+            animation: pulse-red 1.2s ease-in-out infinite alternate;
+            pointer-events: none;
+        }
+        #danger-overlay.visible { display: block; }
+        @keyframes pulse-red {
+            from { background: rgba(180, 0, 90, 0.78); }
+            to   { background: rgba(255, 0, 120, 0.90); }
+        }
+
+        .map-hud {
+            position: absolute;
+            top: 20px; left: 280px; right: 20px;
+            z-index: 500;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            pointer-events: none;
+        }
+        .hud-chip {
+            background: var(--bg-panel);
+            border: 1px solid rgba(168, 85, 247, 0.28);
+            border-radius: var(--radius);
+            padding: 10px 16px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            box-shadow: var(--shadow-deep);
+            pointer-events: auto;
+        }
+        .hud-chip.danger { border-color: var(--alert-red); color: #fca5a5; }
+
+        .leaflet-hero-tooltip {
+            background: rgba(22, 22, 42, 0.96) !important;
+            border: 1px solid rgba(138, 43, 226, 0.45) !important;
+            color: #fff !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 0.82rem !important;
+            font-weight: 700 !important;
+            border-radius: 10px !important;
+            padding: 6px 10px !important;
+            box-shadow: 0 0 14px rgba(138, 43, 226, 0.3) !important;
+            line-height: 1.4 !important;
+        }
+        .leaflet-hero-tooltip::before { border-top-color: rgba(138, 43, 226, 0.45) !important; }
+        .parent-child-marker { background: transparent; border: none; }
+        .parent-pin {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, #3b82f6, #a855f7);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.5);
+        }
+
+        .sidebar-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 6px 8px 14px;
+        }
+        .sidebar-status {
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.45);
+            margin-top: -10px;
+            padding: 0 12px 12px;
+            letter-spacing: 0.3px;
+        }
+        .sidebar-divider {
+            height: 1px;
+            background: rgba(168, 85, 247, 0.10);
+            margin: 6px 12px 12px;
+        }
+        .sidebar-account {
+            font-size: 0.68rem;
+            color: rgba(255,255,255,0.35);
+            padding: 8px 12px;
+            letter-spacing: 0.3px;
+            word-break: break-all;
+        }
+
+        .route-list {
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .route-item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            align-items: center;
+            background: var(--bg-card);
+            border: 1px solid rgba(168, 85, 247, 0.16);
+            border-radius: var(--radius);
+            padding: 12px 12px;
+            transition: var(--transition);
+        }
+        .route-item:hover {
+            transform: translateY(-2px);
+            border-color: rgba(168, 85, 247, 0.26);
+        }
+        .route-title { font-weight: 800; color: #fff; font-size: 0.92rem; }
+        .route-hint  { margin-top: 4px; color: rgba(255,255,255,0.50); font-size: 0.78rem; line-height: 1.35; }
+
+        .btn-mini-danger {
+            background: rgba(239, 68, 68, 0.10);
+            border: 1px solid rgba(239, 68, 68, 0.32);
+            color: #fca5a5;
+            border-radius: 12px;
+            padding: 8px 10px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-mini-danger:hover {
+            background: rgba(239, 68, 68, 0.16);
+            border-color: rgba(239, 68, 68, 0.50);
+            transform: translateY(-1px);
+        }
+
+        .history-list {
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .history-row {
+            background: var(--bg-card);
+            border: 1px solid rgba(168, 85, 247, 0.12);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            box-shadow: 0 16px 44px rgba(0,0,0,0.32);
+            transition: var(--transition);
+        }
+        .history-row:hover { transform: translateY(-2px); }
+        .history-row .title { font-weight: 900; color: #fff; }
+        .history-row .meta  { margin-top: 6px; font-size: 0.78rem; color: rgba(255,255,255,0.50); }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            font-weight: 900;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(59, 130, 246, 0.26);
+            background: rgba(59, 130, 246, 0.10);
+            color: #bfdbfe;
+        }
+        .tag.ok    { border-color: rgba(34,197,94,0.32);  background: rgba(34,197,94,0.08);  color: #bbf7d0; }
+        .tag.alert { border-color: rgba(239,68,68,0.32);  background: rgba(239,68,68,0.08);  color: #fecaca; }
+
+        .btn-reset-demo {
+            width: calc(100% - 24px);
+            margin: 8px 12px;
+            padding: 10px 12px;
+            font-size: 0.72rem;
+            background: transparent;
+            border: 1px dashed rgba(255, 255, 255, 0.16);
+            color: var(--text-muted);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .btn-reset-demo:hover {
+            border-color: var(--neon-violet);
+            color: #c4b5fd;
+            background: rgba(168, 85, 247, 0.07);
+            box-shadow: 0 0 14px rgba(0,255,255,0.14);
+        }
+
+        /* Section heading inside panel */
+        .section-hint {
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.45);
+            margin-bottom: 10px;
+        }
+
+        /* ─── Mission Secured overlay (parent view) ─── */
+        #mission-secured-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10001;
+            background: radial-gradient(ellipse at 50% 35%, rgba(0,230,118,0.20) 0%, rgba(4,14,7,0.97) 65%);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            text-align: center;
+        }
+        #mission-secured-overlay.show { display: flex; }
+        .secured-card {
+            width: min(560px, 100%);
+            background: rgba(4, 18, 10, 0.98);
+            border-radius: 24px;
+            border: 1px solid rgba(0, 230, 118, 0.28);
+            box-shadow: 0 0 80px rgba(0, 230, 118, 0.16),
+                        0 30px 100px rgba(0, 0, 0, 0.82);
+            padding: 44px 36px 40px;
+            animation: securedIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes securedIn {
+            from { opacity: 0; transform: scale(0.88) translateY(28px); }
+            to   { opacity: 1; transform: scale(1)    translateY(0);    }
+        }
+        .secured-eyebrow {
+            font-size: 0.70rem;
+            font-weight: 800;
+            letter-spacing: 3.5px;
+            color: rgba(0, 230, 118, 0.55);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+        }
+        .secured-title {
+            font-size: clamp(1.9rem, 5vw, 2.8rem);
+            font-weight: 900;
+            color: #00e676;
+            letter-spacing: -0.02em;
+            text-shadow: 0 0 36px rgba(0, 230, 118, 0.50);
+            line-height: 1.08;
+        }
+        .secured-divider {
+            width: 52px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00e676, transparent);
+            margin: 22px auto;
+            border-radius: 999px;
+            opacity: 0.7;
+        }
+        .secured-msg {
+            font-size: 1.05rem;
+            color: rgba(255,255,255,0.72);
+            line-height: 1.70;
+            max-width: 440px;
+            margin: 0 auto;
+        }
+        .secured-btn {
+            margin-top: 28px;
+            padding: 14px 40px;
+            border: none;
+            border-radius: 14px;
+            font-weight: 900;
+            font-size: 0.92rem;
+            letter-spacing: 0.6px;
+            cursor: pointer;
+            color: #001a0f;
+            background: linear-gradient(135deg, #00e676, #00bcd4);
+            box-shadow: 0 0 24px rgba(0, 230, 118, 0.28);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .secured-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 38px rgba(0, 230, 118, 0.48);
+        }
+
+        @media (max-width: 768px) {
+            .app-shell { flex-direction: column; }
+            .sidebar {
+                width: 100%;
+                flex-direction: row;
+                flex-wrap: wrap;
+                padding: 10px;
+                gap: 6px;
+            }
+            .sidebar-brand { width: 100%; margin-bottom: 4px; font-size: 1rem; }
+            .nav-item { flex: 1 1 auto; padding: 10px 12px; font-size: 0.75rem; min-width: 0; }
+            .btn-reset-demo { width: 100%; margin: 6px 0; order: 10; }
+            #parent-live-map { height: calc(100vh - 140px) !important; min-height: 280px; }
+            .map-hud { left: 8px; right: 8px; top: auto; bottom: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="danger-overlay" aria-hidden="true"></div>
+
+    <!-- Mission Secured overlay (parent view) -->
+    <div id="mission-secured-overlay" role="dialog" aria-modal="true" aria-labelledby="secured-title-el">
+        <div class="secured-card">
+            <div class="secured-eyebrow">MISSION STATUS</div>
+            <div class="secured-title" id="secured-title-el">Mission Secured</div>
+            <div class="secured-divider"></div>
+            <div class="secured-msg" id="secured-msg">
+                Your child has successfully accomplished the mission and arrived safely at the final destination.
+            </div>
+            <button class="secured-btn" type="button" onclick="acknowledgeMission()">Acknowledge &amp; Clear</button>
+        </div>
+    </div>
+
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <div class="sidebar-brand">SafeStep PRO</div>
+            </div>
+            <div class="sidebar-status">Live Tracking &nbsp;&bull;&nbsp; Mission Control</div>
+            <div class="sidebar-divider"></div>
+
+            <div class="nav-item active" data-view="home"   onclick="switchView('home')">Live Tracking</div>
+            <div class="nav-item"        data-view="route"  onclick="switchView('route')">Route Configuration</div>
+            <div class="nav-item"        data-view="alerts" onclick="switchView('alerts')">Mission Logs &amp; Alerts</div>
+
+            <div style="flex:1"></div>
+            <button type="button" class="btn-reset-demo" onclick="resetDemo()">Reset Demo Data</button>
+            <p class="sidebar-account" id="parent-email-label"></p>
+        </aside>
+
+        <main class="main-content">
+
+            <!-- LIVE TRACKING -->
+            <section id="view-home" class="view-panel active">
+                <div id="parent-live-map"></div>
+                <div class="map-hud">
+                    <div class="hud-chip" id="hud-child">Child: —</div>
+                    <div class="hud-chip" id="hud-mission">Mission: inactive</div>
+                    <div class="hud-chip" id="hud-progress">Progress: 0%</div>
+                    <div class="hud-chip" id="hud-alert" style="display:none">DANGER ACTIVE</div>
+                </div>
+            </section>
+
+            <!-- ROUTE CONFIGURATION -->
+            <section id="view-route" class="view-panel">
+                <div class="panel-card">
+                    <h1 style="margin-bottom:8px;">Route Configuration</h1>
+                    <p class="section-hint">Pairing Code for Child</p>
+                    <h2 id="pair-code" style="color:var(--neon-orange);font-size:2rem;letter-spacing:4px;margin:12px 0;">------</h2>
+
+                    <input type="text" id="checkpoint-name" placeholder="Checkpoint Name">
+                    <input type="text" id="checkpoint-hint" placeholder="SafeBot Hint">
+                    <button class="btn-secondary" onclick="addCheckpoint()">+ Add Checkpoint</button>
+
+                    <div style="margin-top: 14px;">
+                        <p class="section-hint">
+                            Active checkpoints — click Remove to delete from route
+                        </p>
+                        <div id="steps-preview" class="route-list"></div>
+                    </div>
+
+                    <button class="btn-premium" onclick="launchMission()">LAUNCH MISSION</button>
+                </div>
+            </section>
+
+            <!-- MISSION LOGS & ALERTS -->
+            <section id="view-alerts" class="view-panel">
+                <div class="panel-card" style="max-width:720px;">
+                    <h1 style="margin-bottom:12px;">Mission Logs &amp; Alerts</h1>
+
+                    <div class="history-list" id="history-static">
+                        <div class="history-row">
+                            <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+                                <div class="title">Mission completed successfully — 100%</div>
+                                <span class="tag ok">OK</span>
+                            </div>
+                            <div class="meta">Demo record &middot; Example: &ldquo;School &rarr; Park &rarr; Home&rdquo;</div>
+                        </div>
+                        <div class="history-row">
+                            <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+                                <div class="title">Alert: Route Deviation — Resolved</div>
+                                <span class="tag alert">ALERT</span>
+                            </div>
+                            <div class="meta">Example: &ldquo;Zone 1&rdquo; &middot; Parent confirmed child is safe</div>
+                        </div>
+                    </div>
+
+                    <div id="alert-history-list" class="history-list">
+                        <p style="color:var(--text-muted)">No alerts yet.</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="js/api-config.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const API = window.SAFESTEP_API;
+        const email = localStorage.getItem('parent_email');
+        const BASE_LAT = 45.6427;
+        const BASE_LNG = 25.5887;
+        const SAFE_RADIUS = 400;
+
+        // Avatar lookup table — matches index.html & child_map.html
+        const AVATAR_NAMES = {
+            '🧑‍🚀': 'Astro Scout',
+            '🤖':   'SafeBot Prime',
+            '🕵️‍♂️': 'Cyber Detective',
+            '🦸‍♂️': 'Guardian Knight',
+            '🦊':   'Neon Fox',
+            '🐱':   'Cyber Cat',
+            '🐉':   'Techno Dragon',
+            '🥷':   'Shadow Ninja',
+            '🐻':   'Power Bear',
+            '🦅':   'Sky Eagle',
+        };
+
+        if (!email) window.location.href = 'parent_login.html';
+        document.getElementById('parent-email-label').textContent = `Logged in as: ${email || 'parent@safestep.com'}`;
+
+        let dangerModalOpen = false;
+        let successModalOpen = false;
+        let checkpointIndex = 0;
+        let parentMap, childLiveMarker, safeZoneCircle;
+
+        function switchView(name) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === name));
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.toggle('active', p.id === 'view-' + name));
+            if (name === 'home') setTimeout(() => parentMap?.invalidateSize(), 200);
+            if (name === 'alerts') loadAlertHistory();
+        }
+
+        function initParentMap() {
+            parentMap = L.map('parent-live-map', { zoomControl: true }).setView([BASE_LAT, BASE_LNG], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(parentMap);
+
+            safeZoneCircle = L.circle([BASE_LAT, BASE_LNG], {
+                radius: SAFE_RADIUS,
+                color: '#22c55e', fillColor: '#22c55e',
+                fillOpacity: 0.06, weight: 2, dashArray: '8 6'
+            }).addTo(parentMap);
+
+            childLiveMarker = L.marker([BASE_LAT, BASE_LNG], {
+                icon: L.divIcon({
+                    className: 'parent-child-marker',
+                    html: '<div class="parent-pin">🧑‍🚀</div>',
+                    iconSize: [44, 44], iconAnchor: [22, 22]
+                }),
+                zIndexOffset: 2000
+            }).addTo(parentMap);
+        }
+
+        function updateChildMarkerOnMap(data) {
+            if (!childLiveMarker || !data.latitude) return;
+            const lat      = data.latitude;
+            const lng      = data.longitude;
+            const emoji    = data.avatar || '🧑‍🚀';
+            const heroName = AVATAR_NAMES[emoji] || 'Hero';
+            const kidLabel = data.kidName || 'Explorer';
+
+            childLiveMarker.setLatLng([lat, lng]);
+            childLiveMarker.setIcon(L.divIcon({
+                className: 'parent-child-marker',
+                html: `<div class="parent-pin" title="${kidLabel} — ${heroName}">${emoji}</div>`,
+                iconSize: [44, 44], iconAnchor: [22, 22]
+            }));
+            childLiveMarker.bindTooltip(
+                `<strong>${kidLabel}</strong><br>${heroName} ${emoji}`,
+                { permanent: false, direction: 'top', className: 'leaflet-hero-tooltip' }
+            );
+            parentMap.panTo([lat, lng], { animate: true, duration: 0.8 });
+
+            document.getElementById('hud-child').textContent =
+                `Child: ${kidLabel} ${emoji} · ${heroName}`;
+            document.getElementById('hud-mission').textContent =
+                data.missionActive ? 'Mission: ACTIVE' : 'Mission: inactive';
+        }
+
+        async function getCode() {
+            const res = await fetch(`${API}/parent/generate-code?email=${encodeURIComponent(email)}`, { method: 'POST' });
+            document.getElementById('pair-code').textContent = await res.text();
+        }
+
+        async function addCheckpoint() {
+            const name = document.getElementById('checkpoint-name').value.trim();
+            const hint = document.getElementById('checkpoint-hint').value.trim();
+            if (!name) return;
+
+            const angle   = (checkpointIndex * 72) * Math.PI / 180;
+            const offsetM = 120 + checkpointIndex * 40;
+            const lat = BASE_LAT + (offsetM / 111320) * Math.cos(angle);
+            const lng = BASE_LNG + (offsetM / (111320 * Math.cos(BASE_LAT * Math.PI / 180))) * Math.sin(angle);
+
+            const created = await fetch(`${API}/nodes/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name, description: hint, isVisited: false,
+                    latitude: lat, longitude: lng, safetyScore: 1.0
+                })
+            });
+            let createdNode = null;
+            try { createdNode = await created.json(); } catch (e) { /* ignore */ }
+            checkpointIndex++;
+
+            const id   = createdNode && createdNode.id ? createdNode.id : null;
+            const item = document.createElement('div');
+            item.className  = 'route-item';
+            item.dataset.id = id || '';
+            item.innerHTML  = `
+                <div>
+                    <div class="route-title">${name}</div>
+                    <div class="route-hint">${hint || 'No description — SafeBot will guide the child'}</div>
+                </div>
+                <button class="btn-mini-danger" type="button" onclick="removeCheckpoint(this)">Remove</button>
+            `;
+            document.getElementById('steps-preview').appendChild(item);
+            document.getElementById('checkpoint-name').value = '';
+            document.getElementById('checkpoint-hint').value = '';
+        }
+
+        async function removeCheckpoint(btnEl) {
+            const row = btnEl.closest('.route-item');
+            if (!row) return;
+            const id = row.dataset.id;
+            if (!id) { row.remove(); return; }
+            try { await fetch(`${API}/nodes/visit/${id}`, { method: 'POST' }); } catch (e) { /* ignore */ }
+            row.remove();
+            refreshMissionProgress();
+        }
+
+        async function launchMission() {
+            await fetch(`${API}/mission/launch`, { method: 'POST' });
+            switchView('home');
+            Swal.fire({
+                title: 'Mission Launched!',
+                text: 'The child can begin — track the marker on the map.',
+                icon: 'success',
+                background: '#16162a', color: '#fff',
+                timer: 2200, showConfirmButton: false
+            });
+            refreshMissionProgress();
+        }
+
+        function showDangerAlert() {
+            document.getElementById('danger-overlay').classList.add('visible');
+            document.getElementById('hud-alert').style.display = 'block';
+            document.getElementById('hud-alert').classList.add('danger');
+            if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444' });
+
+            if (dangerModalOpen) return;
+            dangerModalOpen = true;
+
+            Swal.fire({
+                title: 'DANGER ALERT',
+                html: '<p style="font-size:1.1rem">Your child has <strong>left the safe route</strong> (over 400 m from base).</p>',
+                icon: 'error',
+                iconColor: '#ef4444',
+                background: '#1a0a0a', color: '#fff',
+                confirmButtonText: 'Dismiss — Child is Safe',
+                confirmButtonColor: '#22c55e',
+                allowOutsideClick: false
+            }).then(result => {
+                if (result.isConfirmed) resetDangerAlert();
+                dangerModalOpen = false;
+            });
+        }
+
+        function showSuccessAlert(childName) {
+            if (successModalOpen) return;
+            successModalOpen = true;
+            const name = (childName && String(childName).trim()) ? String(childName).trim() : '';
+
+            document.getElementById('secured-msg').textContent = name
+                ? `Your child ${name} has successfully accomplished the mission and arrived safely at the final destination.`
+                : 'Your child has successfully accomplished the mission and arrived safely at the final destination.';
+
+            document.getElementById('mission-secured-overlay').classList.add('show');
+        }
+
+        async function acknowledgeMission() {
+            document.getElementById('mission-secured-overlay').classList.remove('show');
+            try { await fetch(`${API}/parent/clear-success`, { method: 'POST' }); } catch (e) { /* ignore */ }
+            successModalOpen = false;
+        }
+
+        async function resetDangerAlert() {
+            document.getElementById('danger-overlay').classList.remove('visible');
+            document.getElementById('hud-alert').style.display = 'none';
+            if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
+            try { await fetch(`${API}/parent/clear-alert`, { method: 'POST' }); } catch (e) { console.error(e); }
+        }
+
+        async function pollChildPosition() {
+            try {
+                const res  = await fetch(`${API}/child/position`);
+                const data = await res.json();
+                updateChildMarkerOnMap(data);
+                if (data.dangerActive) showDangerAlert();
+            } catch (e) { console.error('Position poll failed', e); }
+        }
+
+        async function pollDangerOnly() {
+            try {
+                const res  = await fetch(`${API}/parent/check-alert`);
+                const data = await res.json();
+                if (data.dangerActive)  showDangerAlert();
+                if (data.successActive) showSuccessAlert(data.childName);
+            } catch (e) { /* ignore */ }
+        }
+
+        async function refreshMissionProgress() {
+            try {
+                const res  = await fetch(`${API}/mission/progress`);
+                const data = await res.json();
+                document.getElementById('hud-progress').textContent =
+                    `Progress: ${data.progressPercent || 0}% (${data.visitedCount || 0}/${data.totalCount || 0})`;
+            } catch (e) { /* ignore */ }
+        }
+
+        async function resetDemo() {
+            const ok = await Swal.fire({
+                title: 'Reset Demo?',
+                text: 'This will clear all checkpoints, alerts and pairing codes. Parent accounts are preserved.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Reset',
+                cancelButtonText: 'Cancel',
+                background: '#16162a', color: '#fff'
+            });
+            if (!ok.isConfirmed) return;
+            try {
+                await fetch(`${API}/system/reset`, { method: 'POST' });
+                checkpointIndex = 0;
+                document.getElementById('steps-preview').innerHTML = '';
+                await Swal.fire({
+                    title: 'Done!',
+                    text: 'Demo reset. You can replay the presentation.',
+                    icon: 'success',
+                    background: '#16162a', color: '#fff',
+                    timer: 1500, showConfirmButton: false
+                });
+                location.reload();
+            } catch (e) {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Could not reach the server. Check the IP address and port 8080.',
+                    icon: 'error',
+                    background: '#16162a', color: '#fff'
+                });
+            }
+        }
+
+        async function loadAlertHistory() {
+            const list = document.getElementById('alert-history-list');
+            try {
+                const res   = await fetch(`${API}/parent/alert-history`);
+                const items = await res.json();
+                if (!items.length) {
+                    list.innerHTML = '<p style="color:var(--text-muted)">No alerts recorded in the current session.</p>';
+                    return;
+                }
+                list.innerHTML = items.map(a => `
+                    <div class="history-row">
+                        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+                            <div class="title">${a.message || 'Danger alert'}</div>
+                            <span class="tag alert">LIVE</span>
+                        </div>
+                        <div class="meta">${a.timestamp || ''} &middot; ${a.kidName || 'Child'}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                list.innerHTML = '<p style="color:var(--text-muted)">Could not load alert history.</p>';
+            }
+        }
+
+        window.onload = () => {
+            initParentMap();
+            getCode();
+            pollChildPosition();
+            refreshMissionProgress();
+            setInterval(pollChildPosition,     2000);
+            setInterval(pollDangerOnly,        3000);
+            setInterval(refreshMissionProgress, 5000);
+        };
+    </script>
+</body>
+</html>

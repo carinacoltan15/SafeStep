@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeStep — Alege Eroul</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body { background: var(--bg-deep); }
+        .hero-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            margin-top: 20px;
+        }
+        .hero-card {
+            background: var(--bg-card);
+            border: 2px solid rgba(168, 85, 247, 0.2);
+            border-radius: var(--radius);
+            padding: 20px 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow-deep);
+        }
+        .hero-card:hover, .hero-card.selected {
+            border-color: var(--neon-violet);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px rgba(168, 85, 247, 0.35);
+        }
+        .hero-card .emoji { font-size: 2.8rem; display: block; margin-bottom: 8px; }
+        .hero-card .label { font-size: 0.8rem; font-weight: 700; color: #c4b5fd; }
+    </style>
+</head>
+<body class="app-center">
+    <div class="glass-panel">
+        <h1>Alege-ți eroul 🦸</h1>
+        <p>Avatarul tău va apărea pe hartă în timpul misiunii.</p>
+        <div class="hero-grid" id="hero-grid">
+            <div class="hero-card" data-avatar="🤖" data-id="robot"><span class="emoji">🤖</span><span class="label">Robot</span></div>
+            <div class="hero-card" data-avatar="🧑‍🚀" data-id="astronaut"><span class="emoji">🧑‍🚀</span><span class="label">Astronaut</span></div>
+            <div class="hero-card" data-avatar="🐱‍👤" data-id="ninja-cat"><span class="emoji">🐱‍👤</span><span class="label">Pisică-Ninja</span></div>
+            <div class="hero-card" data-avatar="🦸" data-id="superhero"><span class="emoji">🦸</span><span class="label">Super-Erou</span></div>
+        </div>
+        <button class="btn-premium" id="btn-continue" style="margin-top: 20px;" disabled onclick="continueFlow()">CONTINUĂ →</button>
+    </div>
+    <script>
+        let selected = localStorage.getItem('kid_avatar') || '';
+        const cards = document.querySelectorAll('.hero-card');
+        cards.forEach(card => {
+            if (card.dataset.avatar === selected) card.classList.add('selected');
+            card.onclick = () => {
+                cards.forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                selected = card.dataset.avatar;
+                localStorage.setItem('kid_avatar', selected);
+                localStorage.setItem('kid_avatar_id', card.dataset.id);
+                document.getElementById('btn-continue').disabled = false;
+            };
+        });
+        if (selected) document.getElementById('btn-continue').disabled = false;
+
+        function continueFlow() {
+            if (!selected) return;
+            const paired = localStorage.getItem('is_paired') === 'true';
+            window.location.href = paired ? 'child_map.html' : 'pairing.html';
+        }
+    </script>
+</body>
+</html>

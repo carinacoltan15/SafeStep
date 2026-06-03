@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SafeStep — Child Mission</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/i18n.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        html, body.child-app {
+            overflow-x: hidden;
+            max-width: 100vw;
+            -webkit-overflow-scrolling: touch;
+        }
+        body.child-app {
+            background: var(--bg-deep);
+            min-height: 100dvh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: max(12px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+            overflow-y: auto;
+        }
+        body.child-app::before,
+        body.child-app::after {
+            content: "";
+            position: fixed;
+            inset: -40%;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                radial-gradient(circle at 15% 20%, rgba(0,255,255,0.10), transparent 45%),
+                radial-gradient(circle at 80% 30%, rgba(138,43,226,0.18), transparent 45%),
+                radial-gradient(circle at 50% 85%, rgba(0,255,127,0.10), transparent 55%),
+                repeating-linear-gradient(120deg, rgba(0,255,255,0.06) 0px, rgba(0,255,255,0.06) 1px, transparent 1px, transparent 26px);
+            opacity: 0.6;
+            animation: child-bg 20s linear infinite;
+        }
+        body.child-app::after {
+            opacity: 0.35;
+            animation-duration: 32s;
+            mix-blend-mode: screen;
+        }
+        @keyframes child-bg {
+            0%   { transform: translate3d(-2%, -1%, 0) rotate(0deg); }
+            50%  { transform: translate3d(2%,  1%, 0) rotate(6deg);  }
+            100% { transform: translate3d(-2%, -1%, 0) rotate(0deg); }
+        }
+        .mission-panel {
+            background: var(--bg-panel);
+            border: 1px solid rgba(168, 85, 247, 0.22);
+            border-radius: var(--radius);
+            padding: 18px 16px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: var(--shadow-deep);
+            transition: var(--transition);
+            box-sizing: border-box;
+        }
+        .mission-panel { position: relative; z-index: 2; }
+
+        .game-hud {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .hud-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .hud-avatar {
+            width: 44px; height: 44px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(138,43,226,0.35), rgba(0,255,255,0.18));
+            border: 1px solid rgba(0,255,255,0.25);
+            box-shadow: 0 0 18px rgba(0,255,255,0.18);
+            display: grid;
+            place-items: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .hud-name {
+            font-weight: 900;
+            font-size: 0.95rem;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .hud-sub {
+            color: rgba(255,255,255,0.55);
+            font-size: 0.72rem;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .hud-center { text-align: right; }
+        .hud-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .btn-hud-ghost {
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.8);
+            border-radius: 12px;
+            padding: 8px 10px;
+            font-size: 0.72rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-hud-ghost:hover {
+            border-color: rgba(0,255,255,0.35);
+            box-shadow: 0 0 16px rgba(0,255,255,0.18);
+            transform: translateY(-1px);
+        }
+        .hud-score {
+            font-weight: 900;
+            font-size: 1.05rem;
+            color: #00ffff;
+            text-shadow: 0 0 12px rgba(0,255,255,0.25);
+        }
+        .hud-bar {
+            margin-top: 6px;
+            height: 10px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(0,255,255,0.18);
+            box-shadow: 0 0 14px rgba(138,43,226,0.15);
+        }
+        .hud-bar > div {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #8a2be2, #00ffff, #00ff7f);
+            box-shadow: 0 0 18px rgba(0,255,255,0.2);
+            transition: width 0.6s ease;
+        }
+
+        #map-clip {
+            width: min(72vw, 260px);
+            height: min(72vw, 260px);
+            margin: 12px auto;
+            border-radius: 50%;
+            border: 4px solid #8a2be2;
+            overflow: hidden; position: relative;
+            box-shadow: 0 0 32px rgba(168, 85, 247, 0.35);
+            transition: var(--transition);
+        }
+        #map-clip::before {
+            content: "";
+            position: absolute;
+            inset: -8px;
+            border-radius: 50%;
+            border: 2px solid rgba(0,255,255,0.20);
+            filter: blur(0.2px);
+            animation: radarPulse 1.8s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 3;
+        }
+        @keyframes radarPulse {
+            0%, 100% { opacity: 0.35; transform: scale(0.985); }
+            50%       { opacity: 0.85; transform: scale(1.02);  }
+        }
+        #map-clip.safe-active   { border-color: #22c55e; box-shadow: 0 0 28px rgba(0,255,127,0.45); }
+        #map-clip.danger-active { border-color: var(--alert-red) !important; box-shadow: 0 0 46px rgba(239,68,68,0.75) !important; }
+        #mini-map { width: 100%; height: 100%; }
+        .radar-line {
+            position: absolute; inset: 0;
+            background: conic-gradient(from 0deg, transparent 70%, rgba(168,85,247,0.45) 100%);
+            animation: sweep 4s linear infinite;
+            z-index: 2; pointer-events: none;
+            transition: var(--transition);
+        }
+        .radar-line.safe-active   { background: conic-gradient(from 0deg, transparent 70%, rgba(34,197,94,0.45) 100%) !important; }
+        .radar-line.danger-active { background: conic-gradient(from 0deg, transparent 70%, rgba(239,68,68,0.55) 100%) !important; }
+        @keyframes sweep { to { transform: rotate(360deg); } }
+
+        .child-avatar-marker { background: transparent; border: none; }
+        .child-pin {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--neon-orange), #ea580c);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 6px 18px rgba(255,130,58,0.55);
+            transition: var(--transition);
+        }
+
+        #safebot-msg {
+            background: var(--bg-card);
+            padding: 14px 16px;
+            border-radius: var(--radius);
+            margin: 12px 0;
+            border: 1px solid rgba(59,130,246,0.35);
+            color: #dbeafe;
+            font-size: 0.92rem;
+            min-height: 52px;
+            transition: var(--transition);
+        }
+        .welcome-banner {
+            display: none;
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 16px;
+            background: linear-gradient(90deg, rgba(0,255,255,0.14), rgba(138,43,226,0.16));
+            border: 1px solid rgba(0,255,255,0.18);
+            box-shadow: 0 0 20px rgba(0,255,255,0.12);
+            color: #e0f2fe;
+            font-weight: 800;
+            font-size: 0.86rem;
+            animation: welcomeIn 0.55s ease;
+        }
+        .welcome-banner.show { display: block; }
+        @keyframes welcomeIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+        .progress-bar-track {
+            height: 12px; background: var(--bg-card);
+            border-radius: 999px; overflow: hidden;
+            border: 1px solid rgba(168,85,247,0.3);
+        }
+        .progress-bar-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--neon-violet), var(--neon-blue));
+            border-radius: 999px;
+            transition: width 0.6s ease;
+        }
+        .cards-stack {
+            position: relative; height: 128px;
+            margin: 14px 0; overflow: hidden;
+        }
+        .card-peek {
+            position: absolute; left: 10px; right: 10px; height: 10px;
+            background: #141425; border-radius: 12px 12px 0 0;
+            border: 1px solid rgba(168,85,247,0.15);
+            pointer-events: none;
+        }
+        .card-peek.peek-1 { bottom: 6px; z-index: 1; }
+        .card-peek.peek-2 { bottom: 0; left: 18px; right: 18px; z-index: 0; }
+        .checkpoint-card {
+            position: absolute; left: 0; right: 0; top: 0; bottom: 10px;
+            padding: 16px 18px;
+            border-radius: var(--radius);
+            background: #252538;
+            border: 1px solid rgba(168,85,247,0.35);
+            box-shadow: var(--shadow-deep);
+            text-align: left; z-index: 5;
+            transition: transform 0.45s ease, opacity 0.45s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+            border-color: rgba(0,255,255,0.18);
+            box-shadow: 0 0 18px rgba(0,255,255,0.08), var(--shadow-deep);
+        }
+        .checkpoint-card.swipe-out { transform: translateX(200px) rotate(6deg); opacity: 0; }
+        .checkpoint-card h3 { color: #fff; font-size: 1rem; margin-bottom: 6px; }
+        .checkpoint-card p  { color: var(--text-muted); font-size: 0.8rem; margin: 0; }
+        .mission-badge {
+            display: inline-block; margin-top: 8px;
+            padding: 4px 10px; border-radius: 999px;
+            background: rgba(59,130,246,0.2);
+            color: #93c5fd; font-size: 0.68rem; font-weight: 700;
+        }
+
+        /* ─── Pairing overlay ─── */
+        #pairing-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 22, 0.92);
+            z-index: 9999;
+            padding: 18px;
+            align-items: center;
+            justify-content: center;
+        }
+        #pairing-overlay.show { display: flex; }
+        #pairing-overlay.fade-out { animation: fadeOut 0.45s ease forwards; }
+        @keyframes fadeOut { to { opacity: 0; visibility: hidden; } }
+
+        .pairing-card {
+            width: min(440px, 100%);
+            background: rgba(22,22,42,0.98);
+            border: 1px solid rgba(0,255,255,0.16);
+            border-radius: 18px;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.75);
+            padding: 18px;
+        }
+        .pairing-title  { font-weight: 900; font-size: 1.2rem; margin-bottom: 8px; color: #fff; }
+        .pairing-sub    { color: rgba(255,255,255,0.65); font-size: 0.9rem; line-height: 1.5; margin-bottom: 14px; }
+        .avatar-carousel {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin: 12px 0 14px;
+        }
+        @media (max-width: 400px) {
+            .avatar-carousel { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+        }
+        .avatar-pill {
+            border-radius: 14px;
+            padding: 12px 10px;
+            text-align: center;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(138,43,226,0.22);
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 1.3rem;
+            box-shadow: 0 0 12px rgba(138,43,226,0.08);
+        }
+        .avatar-pill:hover { transform: translateY(-2px); box-shadow: 0 0 18px rgba(0,255,255,0.14); }
+        .avatar-pill.active {
+            border-color: rgba(0,255,255,0.45);
+            box-shadow: 0 0 22px rgba(0,255,255,0.22);
+            background: rgba(0,255,255,0.08);
+        }
+        .pairing-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .pairing-row input { margin-bottom: 0; }
+        .pairing-actions { margin-top: 14px; display: grid; gap: 10px; }
+        .btn-start {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: none;
+            font-weight: 900;
+            font-size: 1rem;
+            color: #001014;
+            background: linear-gradient(90deg, #00ffff, #00ff7f);
+            box-shadow: 0 0 18px rgba(0,255,255,0.25);
+            cursor: pointer;
+            transition: var(--transition);
+            opacity: 0.55;
+        }
+        .btn-start.enabled { opacity: 1; }
+        .btn-start.enabled:hover { transform: translateY(-2px); box-shadow: 0 0 26px rgba(0,255,255,0.35); }
+
+        /* ─── Mission Accomplished overlay ─── */
+        #mission-accomplished {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9998;
+            background: radial-gradient(ellipse at 50% 40%, rgba(0,230,118,0.18) 0%, rgba(7,7,18,0.96) 65%);
+            align-items: center;
+            justify-content: center;
+            padding: 22px;
+            text-align: center;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+        }
+        #mission-accomplished.show { display: flex; }
+        .accomplished-card {
+            width: min(520px, 100%);
+            background: rgba(6, 22, 14, 0.98);
+            border-radius: 22px;
+            border: 1px solid rgba(0, 230, 118, 0.28);
+            box-shadow: 0 0 60px rgba(0, 230, 118, 0.16),
+                        0 30px 90px rgba(0, 0, 0, 0.78);
+            padding: 32px 26px 28px;
+            animation: accomplishedIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes accomplishedIn {
+            from { opacity: 0; transform: scale(0.86) translateY(24px); }
+            to   { opacity: 1; transform: scale(1)    translateY(0);    }
+        }
+        .accomplished-title {
+            font-size: clamp(1.5rem, 5vw, 2rem);
+            font-weight: 900;
+            color: #00e676;
+            letter-spacing: -0.01em;
+            text-shadow: 0 0 28px rgba(0, 230, 118, 0.55);
+        }
+        .accomplished-msg {
+            margin-top: 14px;
+            font-size: 1rem;
+            color: rgba(255,255,255,0.78);
+            line-height: 1.6;
+        }
+        .accomplished-xp {
+            margin-top: 16px;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: #00e676;
+            text-shadow: 0 0 18px rgba(0, 230, 118, 0.45);
+        }
+        .accomplished-btn {
+            margin-top: 24px;
+            width: 100%;
+            border: none;
+            border-radius: 16px;
+            padding: 14px 16px;
+            font-weight: 900;
+            font-size: 1rem;
+            cursor: pointer;
+            color: #001a0f;
+            background: linear-gradient(135deg, #00e676, #00bcd4);
+            box-shadow: 0 0 22px rgba(0, 230, 118, 0.28);
+            transition: var(--transition);
+            letter-spacing: 0.4px;
+        }
+        .accomplished-btn:hover { transform: translateY(-2px); box-shadow: 0 0 34px rgba(0, 230, 118, 0.45); }
+        .btn-premium, .btn-ghost { max-width: 100%; }
+
+        /* ─── GPS Toggle ─── */
+        .gps-toggle-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0 4px;
+        }
+        .gps-toggle-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.65);
+            white-space: nowrap;
+        }
+        .gps-toggle-label.active-label { color: #00ffff; text-shadow: 0 0 10px rgba(0,255,255,0.35); }
+        .toggle-pill { position: relative; width: 52px; height: 28px; cursor: pointer; flex-shrink: 0; }
+        .toggle-pill input { opacity: 0; width: 0; height: 0; }
+        .toggle-track {
+            position: absolute; inset: 0;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(138,43,226,0.35);
+            transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+        }
+        .toggle-track::after {
+            content: "";
+            position: absolute;
+            left: 3px; top: 3px;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.55);
+            box-shadow: 0 0 8px rgba(138,43,226,0.25);
+            transition: transform 0.3s, background 0.3s, box-shadow 0.3s;
+        }
+        .toggle-pill input:checked + .toggle-track {
+            background: rgba(0,255,255,0.14);
+            border-color: rgba(0,255,255,0.5);
+            box-shadow: 0 0 14px rgba(0,255,255,0.22);
+        }
+        .toggle-pill input:checked + .toggle-track::after {
+            transform: translateX(24px);
+            background: #00ffff;
+            box-shadow: 0 0 12px rgba(0,255,255,0.45);
+        }
+        #gps-status-chip {
+            display: none;
+            margin: 4px auto 0;
+            text-align: center;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #86efac;
+            padding: 4px 12px;
+            border-radius: 999px;
+            background: rgba(34,197,94,0.10);
+            border: 1px solid rgba(34,197,94,0.25);
+            animation: gpsChipIn 0.4s ease;
+        }
+        @keyframes gpsChipIn {
+            from { opacity: 0; transform: scale(0.88); }
+            to   { opacity: 1; transform: scale(1);    }
+        }
+
+        /* ─── I AM HERE — Premium Check-In Button ─── */
+        #btn-here {
+            width: 100%;
+            padding: 18px 16px;
+            border-radius: 18px;
+            border: none;
+            font-weight: 900;
+            font-size: 1.12rem;
+            letter-spacing: 1.5px;
+            color: #fff;
+            background: linear-gradient(90deg, #8a2be2, #00f2fe);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.5),
+                        0 0 32px rgba(138, 43, 226, 0.35),
+                        0 8px 24px rgba(0, 0, 0, 0.45);
+            cursor: pointer;
+            transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        box-shadow 0.18s ease,
+                        opacity 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 10px;
+            animation: btnHerePulse 2.4s ease-in-out infinite alternate;
+        }
+        #btn-here:disabled {
+            opacity: 0.38;
+            cursor: not-allowed;
+            animation: none;
+            box-shadow: none;
+        }
+        #btn-here:not(:disabled):hover {
+            animation: none;
+            box-shadow: 0 0 26px rgba(0, 242, 254, 0.75),
+                        0 0 52px rgba(138, 43, 226, 0.45),
+                        0 12px 32px rgba(0, 0, 0, 0.5);
+        }
+        #btn-here:not(:disabled):active {
+            transform: scale(0.95);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.4),
+                        0 4px 12px rgba(0, 0, 0, 0.45);
+            animation: none;
+        }
+        /* Sheen sweep on hover */
+        #btn-here::after {
+            content: "";
+            position: absolute;
+            top: 0; left: -100%;
+            width: 60%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+            transition: left 0.55s ease;
+            pointer-events: none;
+        }
+        #btn-here:not(:disabled):hover::after { left: 140%; }
+
+        @keyframes btnHerePulse {
+            from { box-shadow: 0 0 12px rgba(0,242,254,0.4), 0 0 24px rgba(138,43,226,0.25), 0 8px 24px rgba(0,0,0,0.45); }
+            to   { box-shadow: 0 0 28px rgba(0,242,254,0.75), 0 0 52px rgba(138,43,226,0.5),  0 8px 24px rgba(0,0,0,0.45); }
+        }
+
+        @media (max-width: 380px) {
+            .mission-panel { padding: 14px 12px; }
+            #kid-welcome { font-size: 1.1rem; }
+            .cards-stack { height: 118px; }
+        }
+    </style>
+</head>
+<body class="child-app">
+
+    <!-- Pairing overlay (shown before radar starts) -->
+    <div id="pairing-overlay" class="show">
+        <div class="pairing-card">
+            <div class="pairing-title" data-i18n="mission.ready.title">Get Ready for Mission</div>
+            <div class="pairing-sub" data-i18n="mission.ready.sub">Choose your hero, enter your name and the pairing code from your parent. Once connected, the simulation starts and mission cards are unlocked.</div>
+
+            <div class="avatar-carousel" id="avatar-carousel">
+                <div class="avatar-pill" data-avatar="🧑‍🚀"   title="Astro Scout">🧑‍🚀</div>
+                <div class="avatar-pill" data-avatar="🤖"    title="SafeBot Prime">🤖</div>
+                <div class="avatar-pill" data-avatar="🕵️‍♂️"  title="Cyber Detective">🕵️‍♂️</div>
+                <div class="avatar-pill" data-avatar="🦸‍♂️"  title="Guardian Knight">🦸‍♂️</div>
+                <div class="avatar-pill" data-avatar="🦊"    title="Neon Fox">🦊</div>
+                <div class="avatar-pill" data-avatar="🐱"    title="Cyber Cat">🐱</div>
+                <div class="avatar-pill" data-avatar="🐉"    title="Techno Dragon">🐉</div>
+                <div class="avatar-pill" data-avatar="🥷"    title="Shadow Ninja">🥷</div>
+                <div class="avatar-pill" data-avatar="🐻"    title="Power Bear">🐻</div>
+                <div class="avatar-pill" data-avatar="🦅"    title="Sky Eagle">🦅</div>
+            </div>
+
+            <div class="pairing-row">
+                <input type="text" id="kid-name-input" placeholder="Your name" autocomplete="nickname">
+                <input type="text" id="pair-code-input" placeholder="Code (6 chars)" maxlength="6" style="text-transform: uppercase;" autocomplete="one-time-code">
+            </div>
+
+            <div class="pairing-actions">
+                <button id="btn-start-mission" class="btn-start" type="button" onclick="startMission()" data-i18n="mission.start.btn">START MISSION</button>
+                <button class="btn-secondary" type="button" onclick="demoFill()" data-i18n="mission.demo.btn">Demo Autofill</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mission Accomplished overlay (child view) -->
+    <div id="mission-accomplished">
+        <div class="accomplished-card">
+            <div class="accomplished-title">MISSION ACCOMPLISHED! 🏆</div>
+            <div class="accomplished-msg" id="accomplished-msg">
+                Great job! You reached your destination safely.
+            </div>
+            <div class="accomplished-xp">+500 XP</div>
+            <button class="accomplished-btn" type="button" onclick="finishAndClose()">Finish &amp; Close</button>
+        </div>
+    </div>
+
+    <div class="mission-panel">
+        <div class="game-hud">
+            <div class="hud-left">
+                <div class="hud-avatar" id="hud-avatar">🤖</div>
+                <div style="min-width:0;">
+                    <div class="hud-name" id="hud-name">Explorer</div>
+                    <div class="hud-sub" id="session-tag">Session: —</div>
+                </div>
+            </div>
+            <div class="hud-center">
+                <div class="hud-score" id="hud-score">Current Score: 0 XP</div>
+                <div class="hud-bar"><div id="hud-progress-fill"></div></div>
+                <div class="hud-actions">
+                    <button class="btn-hud-ghost" type="button" onclick="logoutChild()" data-i18n="mission.switch.btn">Switch Account / Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="welcome-banner" class="welcome-banner"></div>
+
+        <div id="map-clip" class="safe-active">
+            <div id="mini-map"></div>
+            <div class="radar-line safe-active" id="radar-line"></div>
+        </div>
+
+        <!-- Hidden legacy elements kept for JS compatibility -->
+        <div style="margin:12px 0;text-align:left; display:none;">
+            <p id="points-label" style="color:var(--neon-orange);font-weight:700;font-size:0.9rem;">Points: 0 XP</p>
+            <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill"></div></div>
+            <p id="progress-label" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">Mission Progress: 0%</p>
+        </div>
+
+        <!-- GPS toggle -->
+        <div class="gps-toggle-wrap">
+            <span class="gps-toggle-label" id="label-sim" data-i18n="mission.sim.label">Simulator Mode</span>
+            <label class="toggle-pill" title="Switch to Real GPS">
+                <input type="checkbox" id="gps-toggle-input" onchange="toggleGpsMode(this.checked)">
+                <span class="toggle-track"></span>
+            </label>
+            <span class="gps-toggle-label" id="label-gps" data-i18n="mission.gps.label">Real GPS Mode</span>
+        </div>
+        <div id="gps-status-chip">GPS Active — Real Coordinates</div>
+
+        <div id="safebot-msg"><strong>SafeBot:</strong> Preparing mission...</div>
+
+        <div class="cards-stack" id="cards-stack">
+            <p style="color:var(--text-muted);text-align:center;padding:24px 0;">Waiting for checkpoints...</p>
+        </div>
+
+        <button id="btn-here" onclick="completeStep()" disabled data-i18n="mission.here.btn">I AM HERE</button>
+        <button class="btn-ghost" type="button" onclick="simulateDeviation()" data-i18n="mission.deviate.btn">Simulate Deviation</button>
+    </div>
+
+    <script src="js/api-config.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const API = window.SAFESTEP_API;
+        const SAFE_RADIUS_M   = 400;
+        const MOVE_INTERVAL_MS = 2500;
+        const METERS_PER_TICK  = 32;
+        const CENTER = { lat: 45.6427, lng: 25.5887 };
+
+        // --- Session persistence (localStorage) ---
+        function getStoredChildName()   { return localStorage.getItem('childName') || localStorage.getItem('kid_name') || ''; }
+        function getStoredPairingCode() { return localStorage.getItem('parentPairingCode') || localStorage.getItem('pairing_code') || ''; }
+        function setStoredSession({ name, code, avatar }) {
+            if (name)   { localStorage.setItem('kid_name', name);  localStorage.setItem('childName', name); }
+            if (code)   { localStorage.setItem('pairing_code', code); localStorage.setItem('parentPairingCode', code); }
+            if (avatar) { localStorage.setItem('kid_avatar', avatar); }
+            localStorage.setItem('is_paired', 'true');
+        }
+
+        let kidName  = getStoredChildName();
+        const sessionId = localStorage.getItem('safestep_session_id') ||
+            (() => { const s = 'ss-' + Date.now(); localStorage.setItem('safestep_session_id', s); return s; })();
+        let kidAvatar = localStorage.getItem('kid_avatar') || '🧑‍🚀';
+        let isPaired  = localStorage.getItem('is_paired') === 'true';
+        let waitingMode = false;
+        let missionCompletedShown = false;
+        let missionStarted = false;
+        let successSent = false;
+
+        document.getElementById('hud-avatar').textContent  = kidAvatar;
+        document.getElementById('hud-name').textContent    = kidName || 'Explorer';
+        document.getElementById('session-tag').textContent = `Session: ${sessionId.slice(0, 14)}…`;
+
+        // Avatar carousel — pre-select from localStorage if available
+        function selectAvatar(emoji) {
+            kidAvatar = emoji;
+            localStorage.setItem('kid_avatar', emoji);
+            document.getElementById('hud-avatar').textContent = emoji;
+            rebuildChildMarker();
+        }
+        (function initCarousel() {
+            const stored = localStorage.getItem('kid_avatar') || '🧑‍🚀';
+            let found = false;
+            document.querySelectorAll('.avatar-pill').forEach(p => {
+                const match = p.dataset.avatar === stored;
+                p.classList.toggle('active', match);
+                if (match) found = true;
+            });
+            // fallback: activate first pill if no match
+            if (!found) {
+                const first = document.querySelector('.avatar-pill');
+                if (first) first.classList.add('active');
+            }
+        })();
+        document.querySelectorAll('.avatar-pill').forEach(p => {
+            p.addEventListener('click', () => {
+                document.querySelectorAll('.avatar-pill').forEach(x => x.classList.remove('active'));
+                p.classList.add('active');
+                selectAvatar(p.dataset.avatar);
+                validatePairingForm();
+            });
+        });
+
+        // Show/hide overlay based on stored session
+        const storedCode = getStoredPairingCode();
+        const hasStoredSession = Boolean(kidName && storedCode && storedCode.length === 6);
+        if (hasStoredSession) {
+            isPaired = true;
+            localStorage.setItem('is_paired', 'true');
+            document.getElementById('kid-name-input').value  = kidName;
+            document.getElementById('pair-code-input').value = storedCode.toUpperCase();
+            document.getElementById('pairing-overlay').classList.remove('show');
+        } else {
+            document.getElementById('pairing-overlay').classList.add('show');
+        }
+
+        function demoFill() {
+            const savedKid = localStorage.getItem('kid_name') || 'Alex';
+            document.getElementById('kid-name-input').value  = savedKid;
+            document.getElementById('pair-code-input').value = (getStoredPairingCode() || '').toUpperCase();
+            validatePairingForm();
+        }
+
+        function validatePairingForm() {
+            const name = document.getElementById('kid-name-input').value.trim();
+            const code = document.getElementById('pair-code-input').value.trim().toUpperCase();
+            const ok   = name.length >= 2 && code.length === 6;
+            const btn  = document.getElementById('btn-start-mission');
+            btn.classList.toggle('enabled', ok);
+            btn.disabled = !ok;
+        }
+        document.getElementById('kid-name-input').addEventListener('input', validatePairingForm);
+        document.getElementById('pair-code-input').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+            validatePairingForm();
+        });
+        validatePairingForm();
+
+        async function startMission() {
+            const name = document.getElementById('kid-name-input').value.trim();
+            const code = document.getElementById('pair-code-input').value.trim().toUpperCase();
+            if (name.length < 2 || code.length !== 6) return;
+
+            try {
+                const res = await fetch(`${API}/parent/check-code/${encodeURIComponent(code)}`);
+                if (!res.ok) {
+                    Swal.fire('Invalid Code', 'Check the code from your parent (6 characters).', 'error');
+                    return;
+                }
+                const parentData = await res.json();
+                setStoredSession({ name, code, avatar: kidAvatar });
+                localStorage.setItem('parent_email', parentData.email || '');
+                isPaired = true;
+                missionStarted = true;
+                kidName  = name;
+                document.getElementById('hud-name').textContent = kidName;
+
+                await fetch(`${API}/child/position`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: childPos.lat, longitude: childPos.lng, avatar: kidAvatar, kidName, sessionId, missionActive })
+                });
+
+                const overlay = document.getElementById('pairing-overlay');
+                overlay.classList.add('fade-out');
+                setTimeout(() => overlay.classList.remove('show'), 460);
+                greetChild();
+            } catch (e) {
+                Swal.fire('Server Error', 'Make sure the backend is running and you are on the same network.', 'error');
+            }
+        }
+
+        let totalPoints = parseInt(localStorage.getItem('safestep_points') || '0', 10);
+        let missionActive = false;
+        let allNodes = [];
+        let currentStep = null;
+        let childPos = { lat: CENTER.lat, lng: CENTER.lng };
+        let dangerSent = false;
+        let dangerSpoken = false;
+        let lastSpokenCheckpointId = null;
+        let speechVoices = [];
+        const checkpointMarkers = [];
+
+        // GPS / Simulator state
+        let gpsMode = false;
+        let simIntervalId = null;
+        let gpsWatchId = null;
+
+        const map = L.map('mini-map', { zoomControl: false, attributionControl: false })
+            .setView([CENTER.lat, CENTER.lng], 15);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        L.circle([CENTER.lat, CENTER.lng], {
+            radius: SAFE_RADIUS_M, color: '#a855f7', fillColor: '#a855f7',
+            fillOpacity: 0.06, weight: 1, dashArray: '6 8'
+        }).addTo(map);
+
+        let childMarker;
+
+        function buildChildIcon(emoji) {
+            return L.divIcon({
+                className: 'child-avatar-marker',
+                html: `<div class="child-pin">${emoji}</div>`,
+                iconSize: [40, 40], iconAnchor: [20, 20]
+            });
+        }
+
+        function rebuildChildMarker() {
+            if (childMarker) map.removeLayer(childMarker);
+            childMarker = L.marker([childPos.lat, childPos.lng], {
+                icon: buildChildIcon(kidAvatar), zIndexOffset: 1000
+            }).addTo(map);
+        }
+        rebuildChildMarker();
+
+        function isNodeVisited(n) { return n.visited === true || n.isVisited === true; }
+
+        function distanceMeters(lat1, lng1, lat2, lng2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function ensureCoords(node, index) {
+            if (node.latitude == null || node.longitude == null || (node.latitude === 0 && node.longitude === 0)) {
+                const angle  = (index * 72) * Math.PI / 180;
+                const offsetM = 120 + index * 40;
+                node.latitude  = CENTER.lat + (offsetM / 111320) * Math.cos(angle);
+                node.longitude = CENTER.lng + (offsetM / (111320 * Math.cos(CENTER.lat * Math.PI / 180))) * Math.sin(angle);
+            }
+            return node;
+        }
+
+        function loadVoices() { speechVoices = window.speechSynthesis?.getVoices() || []; }
+        if (window.speechSynthesis) {
+            loadVoices();
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        function speakSafeBot(text, lang) {
+            if (!window.speechSynthesis || !text) return;
+            window.speechSynthesis.cancel();
+            const u  = new SpeechSynthesisUtterance(text);
+            u.lang   = lang || 'en-US';
+            u.rate   = 0.9;
+            const en = speechVoices.find(v => v.lang?.toLowerCase().startsWith('en'));
+            u.voice  = en || speechVoices[0] || null;
+            window.speechSynthesis.speak(u);
+        }
+
+        function greetChild() {
+            const name = (getStoredChildName() || kidName || 'Explorer').trim();
+            const msg  = `Hello, ${name}! Get ready — SafeStep radar is activated for your mission!`;
+            const banner = document.getElementById('welcome-banner');
+            banner.textContent = msg;
+            banner.classList.add('show');
+            speakSafeBot(msg, 'en-US');
+            setTimeout(() => banner.classList.remove('show'), 5500);
+        }
+
+        function logoutChild() {
+            try { localStorage.clear(); } finally { location.reload(); }
+        }
+
+        function setRadarState(outside) {
+            const clip = document.getElementById('map-clip');
+            const line = document.getElementById('radar-line');
+            clip.classList.toggle('danger-active', outside);
+            clip.classList.toggle('safe-active',   !outside);
+            line.classList.toggle('danger-active', outside);
+            line.classList.toggle('safe-active',   !outside);
+        }
+
+        async function syncPositionToServer() {
+            try {
+                await fetch(`${API}/child/position`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: childPos.lat, longitude: childPos.lng, avatar: kidAvatar, kidName, sessionId, missionActive })
+                });
+            } catch (e) { console.error('Sync position failed', e); }
+        }
+
+        async function triggerDangerAlert(msg) {
+            if (dangerSent) return;
+            dangerSent = true;
+            try {
+                await fetch(`${API}/parent/alert-danger`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg || 'The child has left the safe route!' })
+                });
+            } catch (e) { dangerSent = false; }
+        }
+
+        async function triggerSuccessAlert() {
+            if (successSent) return;
+            successSent = true;
+            try {
+                await fetch(`${API}/parent/alert-success`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'Mission Complete! The child has safely reached the destination.' })
+                });
+            } catch (e) { successSent = false; }
+        }
+
+        function getActiveTarget() {
+            const active = allNodes.filter(n => !isNodeVisited(n));
+            if (!active.length) return { lat: CENTER.lat, lng: CENTER.lng };
+            const idx = allNodes.findIndex(n => n.id === active[0].id);
+            const n   = ensureCoords({ ...active[0] }, idx >= 0 ? idx : 0);
+            return { lat: n.latitude, lng: n.longitude };
+        }
+
+        function simulateChildMovement() {
+            if (!missionActive) return;
+
+            const target = getActiveTarget();
+            const dist   = distanceMeters(childPos.lat, childPos.lng, target.lat, target.lng);
+
+            if (dist >= 1.5) {
+                const stepM   = Math.min(METERS_PER_TICK, dist);
+                const bearing = Math.atan2(target.lng - childPos.lng, target.lat - childPos.lat);
+                childPos.lat += (stepM / 111320) * Math.cos(bearing);
+                childPos.lng += (stepM / (111320 * Math.cos(childPos.lat * Math.PI / 180))) * Math.sin(bearing);
+            }
+
+            childMarker.setLatLng([childPos.lat, childPos.lng]);
+            map.panTo([childPos.lat, childPos.lng], { animate: true, duration: 0.85 });
+
+            const active = allNodes.filter(n => !isNodeVisited(n));
+            if (active.length) {
+                const idx  = allNodes.findIndex(n => n.id === active[0].id);
+                const node = ensureCoords({ ...active[0] }, idx >= 0 ? idx : 0);
+                const d    = distanceMeters(childPos.lat, childPos.lng, node.latitude, node.longitude);
+                document.getElementById('safebot-msg').innerHTML =
+                    `<strong>SafeBot:</strong> <strong>${Math.round(d)}</strong> m left to <strong>${node.name}</strong>`;
+            }
+
+            const outside = distanceMeters(childPos.lat, childPos.lng, CENTER.lat, CENTER.lng) > SAFE_RADIUS_M;
+            setRadarState(outside);
+            if (outside) handleDangerZone(false);
+            else { dangerSent = false; dangerSpoken = false; }
+
+            syncPositionToServer();
+        }
+
+        function handleDangerZone(fromDeviationBtn) {
+            const msg = 'Warning! You have left the safe route!';
+            document.getElementById('safebot-msg').innerHTML =
+                `<strong>SafeBot:</strong> <span style="color:#f87171">${msg}</span>`;
+            setRadarState(true);
+            triggerDangerAlert(msg);
+            if (!dangerSpoken || fromDeviationBtn) {
+                dangerSpoken = true;
+                speakSafeBot(msg, 'en-US');
+            }
+        }
+
+        function simulateDeviation() {
+            childPos.lat = CENTER.lat + (500 / 111320);
+            childPos.lng = CENTER.lng;
+            childMarker.setLatLng([childPos.lat, childPos.lng]);
+            map.panTo([childPos.lat, childPos.lng]);
+            dangerSent = false;
+            handleDangerZone(true);
+            syncPositionToServer();
+        }
+
+        // ── Shared helper: clear GPS watch and restart simulator silently ──────────
+        function _fallbackToSimulator(chip, labelSim, labelGps, msg) {
+            if (gpsWatchId !== null) {
+                try { navigator.geolocation.clearWatch(gpsWatchId); } catch (e) { /* ignore */ }
+                gpsWatchId = null;
+            }
+            gpsMode = false;
+            document.getElementById('gps-toggle-input').checked = false;
+            labelGps.classList.remove('active-label');
+            labelSim.classList.add('active-label');
+
+            // Subtle amber chip — not an error, just a location fallback notice
+            chip.style.display     = 'block';
+            chip.textContent       = 'Using backup location';
+            chip.style.background  = 'rgba(251,191,36,0.10)';
+            chip.style.borderColor = 'rgba(251,191,36,0.26)';
+            chip.style.color       = '#fde68a';
+            // Auto-hide after 4 s so it doesn't clutter the UI
+            setTimeout(() => {
+                chip.style.display     = 'none';
+                chip.style.background  = '';
+                chip.style.borderColor = '';
+                chip.style.color       = '';
+            }, 4000);
+
+            if (!simIntervalId) simIntervalId = setInterval(simulateChildMovement, MOVE_INTERVAL_MS);
+            document.getElementById('safebot-msg').innerHTML =
+                `<strong>SafeBot:</strong> <span style="color:#fde68a">${msg}</span>`;
+        }
+
+        // Toggle Simulator ↔ Real GPS
+        function toggleGpsMode(enabled) {
+            gpsMode = enabled;
+            const chip     = document.getElementById('gps-status-chip');
+            const labelSim = document.getElementById('label-sim');
+            const labelGps = document.getElementById('label-gps');
+
+            if (enabled) {
+                if (simIntervalId) { clearInterval(simIntervalId); simIntervalId = null; }
+                labelSim.classList.remove('active-label');
+                labelGps.classList.add('active-label');
+                chip.style.display = 'block';
+                chip.textContent   = 'Requesting GPS…';
+                chip.style.background  = '';
+                chip.style.borderColor = '';
+                chip.style.color       = '';
+
+                if (!navigator.geolocation) {
+                    _fallbackToSimulator(chip, labelSim, labelGps,
+                        'Geolocation not supported — Simulator Mode active.');
+                    return;
+                }
+
+                document.getElementById('safebot-msg').innerHTML =
+                    '<strong>SafeBot:</strong> <span style="color:#86efac">Requesting location…</span>';
+
+                // enableHighAccuracy: false → browser may use Wi-Fi / cell towers immediately
+                // timeout: 10000 → give up after 10 s instead of hanging
+                // maximumAge: 0  → always request a fresh fix
+                const GPS_OPTIONS = { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 };
+
+                function gpsErrorHandler(err) {
+                    // Any error code → silently fall back; the map stays fully functional
+                    console.warn('[SafeStep GPS] code=' + err.code + ' — ' + err.message);
+                    _fallbackToSimulator(chip, labelSim, labelGps,
+                        'Using backup location mechanism — Simulator Mode active.');
+                }
+
+                try {
+                    gpsWatchId = navigator.geolocation.watchPosition(
+                        (position) => {
+                            const { latitude, longitude, accuracy } = position.coords;
+                            childPos.lat = latitude;
+                            childPos.lng = longitude;
+
+                            childMarker.setLatLng([latitude, longitude]);
+                            map.setView([latitude, longitude], map.getZoom(), { animate: true });
+
+                            chip.textContent       = `GPS Active — ±${Math.round(accuracy)} m`;
+                            chip.style.background  = '';
+                            chip.style.borderColor = '';
+                            chip.style.color       = '';
+
+                            const outside = distanceMeters(latitude, longitude, CENTER.lat, CENTER.lng) > SAFE_RADIUS_M;
+                            setRadarState(outside);
+                            if (outside) handleDangerZone(false);
+                            else { dangerSent = false; dangerSpoken = false; }
+
+                            const active = allNodes.filter(n => !isNodeVisited(n));
+                            if (active.length) {
+                                const idx  = allNodes.findIndex(n => n.id === active[0].id);
+                                const node = ensureCoords({ ...active[0] }, idx >= 0 ? idx : 0);
+                                const d    = distanceMeters(latitude, longitude, node.latitude, node.longitude);
+                                document.getElementById('safebot-msg').innerHTML =
+                                    `<strong>SafeBot:</strong> Real GPS — <strong>${Math.round(d)}</strong> m to <strong>${node.name}</strong>`;
+                            }
+
+                            syncPositionToServerCoords(latitude, longitude);
+                        },
+                        gpsErrorHandler,
+                        GPS_OPTIONS
+                    );
+                } catch (ex) {
+                    // watchPosition itself threw synchronously (rare, but can happen on some
+                    // WebViews / HTTP origins where the API is restricted at the JS engine level)
+                    console.warn('[SafeStep GPS] watchPosition threw:', ex);
+                    _fallbackToSimulator(chip, labelSim, labelGps,
+                        'Using backup location mechanism — Simulator Mode active.');
+                }
+
+            } else {
+                if (gpsWatchId !== null) {
+                    try { navigator.geolocation.clearWatch(gpsWatchId); } catch (e) { /* ignore */ }
+                    gpsWatchId = null;
+                }
+                labelGps.classList.remove('active-label');
+                labelSim.classList.add('active-label');
+                chip.style.display     = 'none';
+                chip.style.background  = '';
+                chip.style.borderColor = '';
+                chip.style.color       = '';
+
+                simIntervalId = setInterval(simulateChildMovement, MOVE_INTERVAL_MS);
+                document.getElementById('safebot-msg').innerHTML =
+                    '<strong>SafeBot:</strong> Simulator Mode active.';
+            }
+        }
+
+        async function syncPositionToServerCoords(lat, lng) {
+            try {
+                await fetch(`${API}/child/position`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: lat, longitude: lng, avatar: kidAvatar, kidName, sessionId, missionActive })
+                });
+            } catch (e) { console.error('GPS sync failed', e); }
+        }
+
+        function updateProgressUI() {
+            const total   = allNodes.length;
+            const visited = allNodes.filter(isNodeVisited).length;
+            const pct     = total > 0 ? Math.round((visited / total) * 100) : 0;
+
+            document.getElementById('progress-fill').style.width  = pct + '%';
+            document.getElementById('points-label').textContent   = `Points: ${totalPoints} XP`;
+            document.getElementById('progress-label').textContent = `Mission Progress: ${pct}% (${visited}/${total})`;
+
+            document.getElementById('hud-score').textContent           = `Current Score: ${totalPoints} XP`;
+            document.getElementById('hud-progress-fill').style.width   = pct + '%';
+        }
+
+        function renderCheckpointMarkers() {
+            checkpointMarkers.forEach(m => map.removeLayer(m));
+            checkpointMarkers.length = 0;
+            allNodes.filter(n => !isNodeVisited(n)).forEach((n) => {
+                const node = ensureCoords({ ...n }, allNodes.indexOf(n));
+                const m = L.circleMarker([node.latitude, node.longitude], {
+                    radius: 6, color: '#fff', fillColor: '#3b82f6', fillOpacity: 1, weight: 2
+                }).bindTooltip(node.name);
+                m.addTo(map);
+                checkpointMarkers.push(m);
+            });
+        }
+
+        function renderCards() {
+            const stack  = document.getElementById('cards-stack');
+            const active = allNodes.filter(n => !isNodeVisited(n));
+            if (!active.length) {
+                stack.innerHTML = '<p style="color:rgba(255,255,255,0.65);text-align:center;padding:24px 0;">No active mission.</p>';
+                document.getElementById('btn-here').disabled = true;
+                return;
+            }
+            const node = active[0];
+            stack.innerHTML = '';
+            if (active.length > 1) {
+                stack.innerHTML += '<div class="card-peek peek-2"></div><div class="card-peek peek-1"></div>';
+            }
+            const card = document.createElement('div');
+            card.className = 'checkpoint-card active';
+            card.innerHTML = `<h3>Mission: ${node.name}</h3><p>${node.description || 'Follow the SafeBot route!'}</p><span class="mission-badge">ACTIVE OBJECTIVE</span>`;
+            stack.appendChild(card);
+            document.getElementById('btn-here').disabled = false;
+        }
+
+        async function syncMissionFromServer() {
+            try {
+                const res  = await fetch(`${API}/child/position`);
+                const data = await res.json();
+                if (data.missionActive) missionActive = true;
+            } catch (e) { /* ignore */ }
+        }
+
+        async function updateView() {
+            try {
+                const res = await fetch(`${API}/nodes`);
+                allNodes  = await res.json();
+            } catch (e) { return; }
+
+            await syncMissionFromServer();
+            missionActive = missionActive || allNodes.some(n => !isNodeVisited(n));
+            if (allNodes.length === 0) {
+                totalPoints = 0;
+                localStorage.setItem('safestep_points', '0');
+            }
+            renderCheckpointMarkers();
+            updateProgressUI();
+            renderCards();
+
+            const active = allNodes.filter(n => !isNodeVisited(n));
+            if (active.length) {
+                const idx   = allNodes.findIndex(n => n.id === active[0].id);
+                const first = ensureCoords({ ...active[0] }, idx >= 0 ? idx : 0);
+                if (!currentStep || currentStep.id !== first.id) {
+                    const isNew = lastSpokenCheckpointId !== first.id;
+                    currentStep = first;
+                    lastSpokenCheckpointId = first.id;
+                    if (isNew) {
+                        const d = Math.round(distanceMeters(childPos.lat, childPos.lng, first.latitude, first.longitude));
+                        speakSafeBot(`New destination: ${first.name}. You have ${d} meters left.`, 'en-US');
+                        Swal.fire({ title: 'New Destination!', text: first.name, icon: 'info', background: '#16162a', color: '#fff', timer: 2000, showConfirmButton: false });
+                    }
+                }
+            } else {
+                currentStep   = null;
+                missionActive = false;
+
+                // Only fire if the child actually started a mission (not on initial empty-server load)
+                if (missionStarted && !missionCompletedShown && !waitingMode && allNodes.length > 0) {
+                    showMissionAccomplished();
+                }
+            }
+        }
+
+        async function completeStep() {
+            if (!currentStep) return;
+            const card = document.querySelector('.checkpoint-card.active');
+            document.getElementById('btn-here').disabled = true;
+            try {
+                await fetch(`${API}/nodes/visit/${currentStep.id}`, { method: 'POST' });
+            } catch (e) {
+                document.getElementById('btn-here').disabled = false;
+                return;
+            }
+            totalPoints += 100;
+            localStorage.setItem('safestep_points', String(totalPoints));
+            speakSafeBot('Great job! Plus one hundred experience points!', 'en-US');
+            confetti({ particleCount: 140, spread: 70, origin: { y: 0.6 } });
+            if (card) {
+                card.classList.add('swipe-out');
+                await new Promise(r => setTimeout(r, 450));
+            }
+            currentStep = null;
+            childPos = { lat: CENTER.lat, lng: CENTER.lng };
+            rebuildChildMarker();
+            await updateView();
+            updateProgressUI();
+            // Primary trigger: show accomplished if this was the last checkpoint
+            if (allNodes.length > 0 && allNodes.every(isNodeVisited) && !missionCompletedShown) {
+                showMissionAccomplished();
+            }
+        }
+
+        function showMissionAccomplished() {
+            if (missionCompletedShown) return;
+            missionCompletedShown = true;
+            totalPoints += 500;
+            localStorage.setItem('safestep_points', String(totalPoints));
+
+            // Child-facing message: direct, game-style congratulation
+            const name = (getStoredChildName() || kidName || '').trim();
+            document.getElementById('accomplished-msg').textContent =
+                name
+                    ? `Great job, ${name}! You reached your destination safely. You earned +500 XP! 🚀`
+                    : 'Great job! You reached your destination safely. You earned +500 XP! 🚀';
+
+            confetti({ particleCount: 300, spread: 100, origin: { y: 0.55 } });
+            speakSafeBot(
+                name
+                    ? `Mission accomplished, ${name}! Congratulations!`
+                    : 'Mission accomplished! Congratulations!',
+                'en-US'
+            );
+            document.getElementById('mission-accomplished').classList.add('show');
+            // Notify server so the parent's dashboard picks up the success state
+            triggerSuccessAlert();
+            updateProgressUI();
+        }
+
+        function finishAndClose() {
+            document.getElementById('mission-accomplished').classList.remove('show');
+        }
+
+        async function waitForNewMission() {
+            document.getElementById('mission-accomplished').classList.remove('show');
+            waitingMode           = true;
+            missionCompletedShown = false;
+            successSent           = false;
+            currentStep           = null;
+            missionActive         = false;
+            document.getElementById('safebot-msg').innerHTML =
+                '<strong>SafeBot:</strong> Waiting for a new mission...';
+            speakSafeBot('Waiting for a new mission.', 'en-US');
+
+            const poll = async () => {
+                await updateView();
+                const hasActive = allNodes.some(n => !isNodeVisited(n));
+                if (hasActive) {
+                    waitingMode   = false;
+                    missionActive = true;
+                    speakSafeBot('New mission detected. Starting!', 'en-US');
+                    return;
+                }
+                if (waitingMode) setTimeout(poll, 3000);
+            };
+            poll();
+        }
+
+        window.onload = () => {
+            updateProgressUI();
+            updateView();
+            syncPositionToServer();
+            setInterval(updateView, 5000);
+            simIntervalId = setInterval(simulateChildMovement, MOVE_INTERVAL_MS);
+            document.getElementById('label-sim').classList.add('active-label');
+            if (hasStoredSession) { missionStarted = true; greetChild(); }
+        };
+    </script>
+</body>
+</html>

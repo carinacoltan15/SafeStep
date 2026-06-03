@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeStep — Parent Login</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/i18n.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body.parent-auth {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 18px;
+            background: radial-gradient(900px 650px at 20% 15%, rgba(138,43,226,0.20), transparent 55%),
+                        radial-gradient(900px 650px at 85% 20%, rgba(0,255,255,0.13), transparent 55%),
+                        radial-gradient(900px 650px at 55% 85%, rgba(0,255,127,0.08), transparent 60%),
+                        #070712;
+            overflow-x: hidden;
+        }
+        body.parent-auth::before {
+            content: "";
+            position: fixed;
+            inset: -40%;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                120deg,
+                rgba(0,255,255,0.05) 0px,
+                rgba(0,255,255,0.05) 1px,
+                transparent 1px,
+                transparent 24px
+            );
+            animation: auth-lines 22s linear infinite;
+            opacity: 0.45;
+        }
+        @keyframes auth-lines {
+            0%   { transform: translate3d(-2%, -1%, 0) rotate(0deg); }
+            100% { transform: translate3d(2%,  1%, 0) rotate(10deg); }
+        }
+        .glass-panel {
+            position: relative;
+            z-index: 2;
+            width: min(420px, 100%);
+        }
+        .pass-wrap { position: relative; }
+        .pass-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 1px solid rgba(0,255,255,0.22);
+            background: rgba(0,255,255,0.07);
+            color: rgba(255,255,255,0.80);
+            border-radius: 10px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            transition: var(--transition);
+        }
+        .pass-toggle:hover {
+            box-shadow: 0 0 14px rgba(0,255,255,0.30);
+            border-color: rgba(0,255,255,0.40);
+        }
+        .login-title {
+            font-size: 1.75rem;
+            font-weight: 900;
+            color: #fff;
+            letter-spacing: -0.01em;
+            margin-bottom: 6px;
+        }
+        .login-subtitle {
+            color: rgba(255,255,255,0.50);
+            font-size: 0.88rem;
+            margin-bottom: 22px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body class="parent-auth">
+
+    <div class="glass-panel">
+        <h1 class="login-title" data-i18n="login.title">Parent Portal</h1>
+        <p class="login-subtitle" data-i18n="login.subtitle">Securely track your child&#x2019;s journey</p>
+
+        <input
+            type="email"
+            id="email"
+            data-i18n-ph="login.email.ph"
+            placeholder="parent@safestep.com"
+            autocomplete="email"
+        >
+        <div class="pass-wrap">
+            <input
+                type="password"
+                id="pass"
+                data-i18n-ph="login.pass.ph"
+                placeholder="Password"
+                style="padding-right: 90px;"
+                autocomplete="current-password"
+            >
+            <button type="button" class="pass-toggle" id="pass-toggle-btn" onclick="togglePass()">
+                <span data-i18n="login.pass.show">Show</span>
+            </button>
+        </div>
+
+        <button class="btn-premium" onclick="login()" data-i18n="login.btn">SIGN IN</button>
+
+        <div style="margin-top: 16px;">
+            <div class="sub-text" data-i18n="login.no-account">New here?</div>
+            <button class="btn-secondary" onclick="location.href='parent_register.html'" data-i18n="login.register">
+                CREATE ACCOUNT
+            </button>
+        </div>
+
+        <a class="back-link" onclick="location.href='index.html'" data-i18n="login.back">Back to Start</a>
+    </div>
+
+    <script src="js/api-config.js"></script>
+    <script>
+        const API = window.SAFESTEP_API;
+
+        function togglePass() {
+            const input = document.getElementById('pass');
+            const span  = document.querySelector('#pass-toggle-btn span');
+            const show  = input.type === 'password';
+            input.type  = show ? 'text' : 'password';
+            const key   = show ? 'login.pass.hide' : 'login.pass.show';
+            span.textContent  = ssT(key);
+            span.dataset.i18n = key;
+        }
+
+        async function login() {
+            const email    = document.getElementById('email').value.trim();
+            const password = document.getElementById('pass').value;
+
+            if (!email || !password) {
+                Swal.fire({
+                    title: 'Missing Fields',
+                    text: 'Please fill in both email and password.',
+                    icon: 'warning',
+                    background: '#16162a',
+                    color: '#fff'
+                });
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/parent/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (res.ok) {
+                    localStorage.setItem('parent_email', email);
+                    window.location.href = 'parent_dash.html';
+                } else {
+                    Swal.fire({
+                        title: 'Invalid Credentials',
+                        text: 'The email or password is incorrect.',
+                        icon: 'error',
+                        background: '#16162a',
+                        color: '#fff'
+                    });
+                }
+            } catch (e) {
+                Swal.fire({
+                    title: 'Server Unreachable',
+                    text: 'Make sure the backend server is running.',
+                    icon: 'error',
+                    background: '#16162a',
+                    color: '#fff'
+                });
+            }
+        }
+    </script>
+</body>
+</html>
