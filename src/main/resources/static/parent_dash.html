@@ -348,9 +348,49 @@
             #parent-live-map { height: calc(100vh - 140px) !important; min-height: 280px; }
             .map-hud { left: 8px; right: 8px; top: auto; bottom: 12px; }
         }
+
+        /* ── Non-blocking notification banner ──────────────────────────── */
+        #notification-banner {
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120px);
+            z-index: 9999;
+            min-width: 280px;
+            max-width: calc(100vw - 32px);
+            padding: 14px 20px;
+            border-radius: 16px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #fff;
+            background: rgba(22, 22, 42, 0.97);
+            border: 1.5px solid rgba(255,255,255,0.12);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            opacity: 0;
+            transition: transform 0.38s cubic-bezier(0.34,1.5,0.64,1), opacity 0.28s ease;
+            pointer-events: none;
+            text-align: center;
+            cursor: pointer;
+        }
+        #notification-banner.nb-visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #notification-banner.nb-danger  { background: rgba(100,5,5,0.97);   border-color: #ef4444; box-shadow: 0 0 28px rgba(239,68,68,0.4),  0 8px 24px rgba(0,0,0,0.5); }
+        #notification-banner.nb-safe    { background: rgba(3,60,30,0.97);   border-color: #22c55e; box-shadow: 0 0 24px rgba(34,197,94,0.35),  0 8px 24px rgba(0,0,0,0.5); }
+        #notification-banner.nb-success { background: rgba(3,60,30,0.97);   border-color: #22c55e; }
+        #notification-banner.nb-warning { background: rgba(70,40,0,0.97);   border-color: #f59e0b; }
+        #notification-banner.nb-info    { background: rgba(10,28,70,0.97);  border-color: #3b82f6; }
     </style>
 </head>
 <body>
+    <!-- Non-blocking notification banner (tap to dismiss) -->
+    <div id="notification-banner" role="status" aria-live="polite"></div>
+
     <div id="danger-overlay" aria-hidden="true"></div>
 
     <!-- Mission Secured overlay (parent view) -->
@@ -459,6 +499,26 @@
         let BASE_LNG = 0;
         const SAFE_RADIUS = 500;
 
+        /* ── Non-blocking banner ───────────────────────────────────────── */
+        (function () {
+            const b = document.getElementById('notification-banner');
+            if (b) b.addEventListener('click', () => b.classList.remove('nb-visible'));
+        })();
+
+        function showBanner(message, type = 'info', duration = 4000) {
+            const b = document.getElementById('notification-banner');
+            if (!b) return;
+            if (b._nbTimer) { clearTimeout(b._nbTimer); b._nbTimer = null; }
+            const icons = { danger:'🚨', safe:'✅', success:'✅', warning:'⚠️', info:'ℹ️' };
+            b.textContent = `${icons[type] || '•'} ${message}`;
+            b.className   = `notification-banner nb-${type} nb-visible`;
+            if (duration > 0) b._nbTimer = setTimeout(() => b.classList.remove('nb-visible'), duration);
+        }
+
+        // Tracks last danger state — banner shown only on state change
+        let _lastDangerState = null;
+        /* ─────────────────────────────────────────────────────────────── */
+
         // Avatar lookup table — matches index.html & child_map.html
         const AVATAR_NAMES = {
             '🧑‍🚀': 'Astro Scout',
@@ -476,7 +536,6 @@
         if (!email) window.location.href = 'parent_login.html';
         document.getElementById('parent-email-label').textContent = `Logged in as: ${email || 'parent@safestep.com'}`;
 
-        let dangerModalOpen = false;
         let successModalOpen = false;
         let checkpointIndex = 0;
         let parentMap, childLiveMarker, safeZoneCircle;
@@ -713,7 +772,8 @@
             const name = document.getElementById('checkpoint-name').value.trim();
             const hint = document.getElementById('checkpoint-hint').value.trim();
             if (!name) {
-                Swal.fire({ title: 'Name required', text: 'Please enter a checkpoint name.', icon: 'warning', background: '#16162a', color: '#fff' });
+                showBanner('Enter a name for the checkpoint first.', 'warning', 3000);
+                document.getElementById('checkpoint-name').focus();
                 return;
             }
 
@@ -728,7 +788,7 @@
                 lat = BASE_LAT + (offsetM / 111320) * Math.cos(angle);
                 lng = BASE_LNG + (offsetM / (111320 * Math.cos(BASE_LAT * Math.PI / 180))) * Math.sin(angle);
             } else {
-                Swal.fire({ title: 'No position', text: 'Click on the map to select a position first, or wait for GPS to load.', icon: 'info', background: '#16162a', color: '#fff' });
+                showBanner('Click on the map to select a position first.', 'info', 4000);
                 return;
             }
 
@@ -803,13 +863,7 @@
         async function launchMission() {
             await fetch(`${API}/mission/launch`, { method: 'POST' });
             switchView('home');
-            Swal.fire({
-                title: 'Mission Launched!',
-                text: 'The child can begin — track the marker on the map.',
-                icon: 'success',
-                background: '#16162a', color: '#fff',
-                timer: 2200, showConfirmButton: false
-            });
+            showBanner('Mission launched — track the child on the map!', 'success', 3500);
             refreshMissionProgress();
         }
 
@@ -829,22 +883,11 @@
             if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444' });
             _setPulse(true);
 
-            if (dangerModalOpen) return;
-            dangerModalOpen = true;
-
-            Swal.fire({
-                title: 'DANGER ALERT',
-                html: '<p style="font-size:1.1rem">Your child has <strong>left the safe route</strong> (over 400 m from base).</p>',
-                icon: 'error',
-                iconColor: '#ef4444',
-                background: '#1a0a0a', color: '#fff',
-                confirmButtonText: 'Dismiss — Child is Safe',
-                confirmButtonColor: '#22c55e',
-                allowOutsideClick: false
-            }).then(result => {
-                if (result.isConfirmed) resetDangerAlert();
-                dangerModalOpen = false;
-            });
+            // Show banner only once per danger event (not on every poll tick)
+            if (_lastDangerState !== 'danger') {
+                _lastDangerState = 'danger';
+                showBanner('DANGER — Child has left the safe zone! Tap to dismiss.', 'danger', 0);
+            }
         }
 
         function showSuccessAlert(childName) {
@@ -868,8 +911,11 @@
         async function resetDangerAlert() {
             document.getElementById('danger-overlay').classList.remove('visible');
             document.getElementById('hud-alert').style.display = 'none';
+            document.getElementById('hud-alert').classList.remove('danger');
             if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
             _setPulse(false);
+            _lastDangerState = 'safe';
+            showBanner('Alert cleared — child is safe.', 'safe', 4000);
             try { await fetch(`${API}/parent/clear-alert`, { method: 'POST' }); } catch (e) { console.error(e); }
         }
 
@@ -885,10 +931,17 @@
                     const safe = isInsideSafeZone(data.latitude, data.longitude);
                     if (!safe) {
                         showDangerAlert();
-                    } else if (!dangerModalOpen) {
-                        // Child is inside the safe zone — ensure zone is shown as green
-                        if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
-                        document.getElementById('hud-alert').style.display = 'none';
+                    } else {
+                        // Child is inside the safe zone — restore green visuals
+                        if (_lastDangerState === 'danger') {
+                            _lastDangerState = 'safe';
+                            document.getElementById('danger-overlay').classList.remove('visible');
+                            document.getElementById('hud-alert').style.display = 'none';
+                            document.getElementById('hud-alert').classList.remove('danger');
+                            if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
+                            _setPulse(false);
+                            showBanner('Child is back in the safe zone.', 'safe', 5000);
+                        }
                     }
                 }
             } catch (e) { console.error('Position poll failed', e); }
@@ -912,36 +965,27 @@
             } catch (e) { /* ignore */ }
         }
 
+        let _resetPending = false;
+        let _resetTimer   = null;
+
         async function resetDemo() {
-            const ok = await Swal.fire({
-                title: 'Reset Demo?',
-                text: 'This will clear all checkpoints, alerts and pairing codes. Parent accounts are preserved.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, Reset',
-                cancelButtonText: 'Cancel',
-                background: '#16162a', color: '#fff'
-            });
-            if (!ok.isConfirmed) return;
+            // Two-tap confirm: first tap shows warning, second tap within 5s executes reset
+            if (!_resetPending) {
+                _resetPending = true;
+                showBanner('Tap Reset again within 5 s to confirm — this clears all checkpoints & alerts.', 'warning', 5000);
+                _resetTimer = setTimeout(() => { _resetPending = false; }, 5000);
+                return;
+            }
+            clearTimeout(_resetTimer);
+            _resetPending = false;
             try {
                 await fetch(`${API}/system/reset`, { method: 'POST' });
                 checkpointIndex = 0;
                 document.getElementById('steps-preview').innerHTML = '';
-                await Swal.fire({
-                    title: 'Done!',
-                    text: 'Demo reset. You can replay the presentation.',
-                    icon: 'success',
-                    background: '#16162a', color: '#fff',
-                    timer: 1500, showConfirmButton: false
-                });
-                location.reload();
+                showBanner('Demo reset — you can replay the presentation.', 'success', 2000);
+                setTimeout(() => location.reload(), 2100);
             } catch (e) {
-                Swal.fire({
-                    title: 'Error',
-                    text: 'Could not reach the server. Check the IP address and port 8080.',
-                    icon: 'error',
-                    background: '#16162a', color: '#fff'
-                });
+                showBanner('Could not reach the server — check connection.', 'warning', 5000);
             }
         }
 

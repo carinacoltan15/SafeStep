@@ -565,9 +565,49 @@
             #kid-welcome { font-size: 1.1rem; }
             .cards-stack { height: 118px; }
         }
+
+        /* ── Non-blocking notification banner ──────────────────────────── */
+        #notification-banner {
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120px);
+            z-index: 9999;
+            min-width: 260px;
+            max-width: calc(100vw - 32px);
+            padding: 13px 18px;
+            border-radius: 16px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.93rem;
+            font-weight: 700;
+            color: #fff;
+            background: rgba(22, 22, 42, 0.97);
+            border: 1.5px solid rgba(255,255,255,0.12);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            opacity: 0;
+            transition: transform 0.38s cubic-bezier(0.34,1.5,0.64,1), opacity 0.28s ease;
+            pointer-events: none;
+            text-align: center;
+            cursor: pointer;
+        }
+        #notification-banner.nb-visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #notification-banner.nb-danger  { background: rgba(100,5,5,0.97);   border-color: #ef4444; box-shadow: 0 0 28px rgba(239,68,68,0.4),  0 8px 24px rgba(0,0,0,0.5); }
+        #notification-banner.nb-safe    { background: rgba(3,60,30,0.97);   border-color: #22c55e; box-shadow: 0 0 24px rgba(34,197,94,0.35),  0 8px 24px rgba(0,0,0,0.5); }
+        #notification-banner.nb-success { background: rgba(3,60,30,0.97);   border-color: #22c55e; }
+        #notification-banner.nb-warning { background: rgba(70,40,0,0.97);   border-color: #f59e0b; }
+        #notification-banner.nb-info    { background: rgba(10,28,70,0.97);  border-color: #3b82f6; }
     </style>
 </head>
 <body class="child-app">
+
+    <!-- Non-blocking notification banner (tap to dismiss) -->
+    <div id="notification-banner" role="status" aria-live="polite"></div>
 
     <!-- Pairing overlay (shown before radar starts) -->
     <div id="pairing-overlay" class="show">
@@ -668,6 +708,26 @@
     <script src="js/api-config.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        /* ── Non-blocking banner ───────────────────────────────────────── */
+        (function () {
+            const b = document.getElementById('notification-banner');
+            if (b) b.addEventListener('click', () => b.classList.remove('nb-visible'));
+        })();
+
+        function showBanner(message, type = 'info', duration = 4000) {
+            const b = document.getElementById('notification-banner');
+            if (!b) return;
+            if (b._nbTimer) { clearTimeout(b._nbTimer); b._nbTimer = null; }
+            const icons = { danger:'🚨', safe:'✅', success:'✅', warning:'⚠️', info:'ℹ️' };
+            b.textContent = `${icons[type] || '•'} ${message}`;
+            b.className   = `notification-banner nb-${type} nb-visible`;
+            if (duration > 0) b._nbTimer = setTimeout(() => b.classList.remove('nb-visible'), duration);
+        }
+
+        // Tracks last radar state so we only show banner on actual change
+        let _lastRadarOutside = null;
+        /* ─────────────────────────────────────────────────────────────── */
+
         const API = window.SAFESTEP_API;
         const SAFE_RADIUS_M    = 500;
         const MOVE_INTERVAL_MS = 2500;
@@ -773,7 +833,7 @@
             try {
                 const res = await fetch(`${API}/parent/check-code/${encodeURIComponent(code)}`);
                 if (!res.ok) {
-                    Swal.fire('Invalid Code', 'Check the code from your parent (6 characters).', 'error');
+                    showBanner('Invalid code — check the 6-character code from your parent.', 'warning');
                     return;
                 }
                 const parentData = await res.json();
@@ -795,7 +855,7 @@
                 setTimeout(() => overlay.classList.remove('show'), 460);
                 greetChild();
             } catch (e) {
-                Swal.fire('Server Error', 'Make sure the backend is running and you are on the same network.', 'error');
+                showBanner('Server unreachable — check your connection.', 'warning');
             }
         }
 
@@ -992,6 +1052,16 @@
             if (el) {
                 const wrapper = el.querySelector('.gps-pulse-wrapper');
                 if (wrapper) wrapper.classList.toggle('danger', outside);
+            }
+
+            // Show banner only when the state actually changes (not on every GPS tick)
+            if (_lastRadarOutside !== outside) {
+                _lastRadarOutside = outside;
+                if (outside) {
+                    showBanner('DANGER — You have left the safe zone!', 'danger', 0);
+                } else {
+                    showBanner('SAFE — You are within the safe zone.', 'safe', 5000);
+                }
             }
         }
 
@@ -1314,7 +1384,7 @@
                     if (isNew) {
                         const d = Math.round(distanceMeters(childPos.lat, childPos.lng, first.latitude, first.longitude));
                         speakSafeBot(`New destination: ${first.name}. You have ${d} meters left.`, 'en-US');
-                        Swal.fire({ title: 'New Destination!', text: first.name, icon: 'info', background: '#16162a', color: '#fff', timer: 2000, showConfirmButton: false });
+                        showBanner(`📍 New destination: ${first.name} — ${d} m`, 'info', 3500);
                     }
                 }
             } else {
