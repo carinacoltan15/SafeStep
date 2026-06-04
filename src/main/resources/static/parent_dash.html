@@ -89,8 +89,34 @@
             line-height: 1.4 !important;
         }
         .leaflet-hero-tooltip::before { border-top-color: rgba(138, 43, 226, 0.45) !important; }
-        .parent-child-marker { background: transparent; border: none; }
+        .parent-child-marker { background: transparent; border: none; overflow: visible; }
+
+        /* ── GPS pulse wrapper ───────────────────────────────────────────── */
+        .gps-pulse-wrapper {
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+            width: 44px; height: 44px;
+        }
+        .pulse-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: rgba(34, 197, 94, 0.35);
+            animation: gps-pulse 1.8s ease-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .gps-pulse-wrapper.danger .pulse-ring {
+            background: rgba(239, 68, 68, 0.4);
+        }
+        @keyframes gps-pulse {
+            0%   { transform: scale(1);   opacity: 0.85; }
+            65%  { transform: scale(2.4); opacity: 0; }
+            100% { transform: scale(2.4); opacity: 0; }
+        }
+
         .parent-pin {
+            position: relative; z-index: 1;
             width: 44px; height: 44px;
             background: linear-gradient(135deg, #3b82f6, #a855f7);
             border: 3px solid #fff;
@@ -427,10 +453,11 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const API = window.SAFESTEP_API;
-        const email = localStorage.getItem('parent_email');
-        const BASE_LAT = 45.6427;
-        const BASE_LNG = 25.5887;
-        const SAFE_RADIUS = 400;
+        const email = sessionStorage.getItem('parent_email');
+        // Dynamic center — updated by GPS detection; no hardcoded location assumed
+        let BASE_LAT = 0;
+        let BASE_LNG = 0;
+        const SAFE_RADIUS = 500;
 
         // Avatar lookup table — matches index.html & child_map.html
         const AVATAR_NAMES = {
@@ -453,6 +480,171 @@
         let successModalOpen = false;
         let checkpointIndex = 0;
         let parentMap, childLiveMarker, safeZoneCircle;
+        // Tracks pulse colour so setIcon rebuilds keep the correct state
+        let _parentMarkerDanger = false;
+
+        // Pending map-click position for next checkpoint placement
+        let _mapClickLat = null;
+        let _mapClickLng = null;
+        let _pendingMarker = null;
+
+        // Detect user GPS and re-center map + safe zone
+        function detectAndCenterOnGPS(callback) {
+            if (!navigator.geolocation) { callback?.(); return; }
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    BASE_LAT = pos.coords.latitude;
+                    BASE_LNG = pos.coords.longitude;
+                    if (parentMap) parentMap.setView([BASE_LAT, BASE_LNG], 15);
+                    if (checkpointCoords.length === 0) updateSafeZone();
+                    callback?.();
+                },
+                () => { callback?.(); },
+                { timeout: 8000, maximumAge: 60000, enableHighAccuracy: true }
+            );
+        }
+
+        // Enable click-on-map to pre-select the position for the next checkpoint
+        function initMapClickForCheckpoint() {
+            parentMap.on('click', e => {
+                _mapClickLat = e.latlng.lat;
+                _mapClickLng = e.latlng.lng;
+
+                if (_pendingMarker) parentMap.removeLayer(_pendingMarker);
+                _pendingMarker = L.marker([_mapClickLat, _mapClickLng], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: `<div style="
+                            width:22px;height:22px;border-radius:50%;
+                            background:#22c55e;border:3px solid #fff;
+                            box-shadow:0 0 12px rgba(34,197,94,0.7);
+                            animation:gps-pulse 1.2s ease-out infinite;">
+                        </div>`,
+                        iconSize: [22, 22], iconAnchor: [11, 11]
+                    })
+                }).bindTooltip('📍 Position selected — fill the form and click Add', {
+                    permanent: true, direction: 'top',
+                    className: 'leaflet-hero-tooltip'
+                }).addTo(parentMap);
+
+                // Highlight the checkpoint name input
+                const inp = document.getElementById('checkpoint-name');
+                if (inp) { inp.focus(); inp.placeholder = 'Name this location…'; }
+            });
+        }
+
+        // Dynamic safe zone — list of {lat, lng} for each active checkpoint
+        let checkpointCoords = [];
+        // Leaflet layer that represents the current dynamic safe zone
+        let safeZoneLayer = null;
+
+        // Haversine distance between two lat/lng points (metres)
+        function distanceMeters(lat1, lng1, lat2, lng2) {
+            const R    = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a    = Math.sin(dLat / 2) ** 2 +
+                         Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                         Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        // Ray-casting point-in-polygon (lat/lng)
+        function pointInPolygon(lat, lng, coords) {
+            let inside = false;
+            for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+                const xi = coords[i].lat, yi = coords[i].lng;
+                const xj = coords[j].lat, yj = coords[j].lng;
+                if (((yi > lng) !== (yj > lng)) &&
+                    (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
+        // Returns true if the position is inside the current safe zone
+        function isInsideSafeZone(lat, lng) {
+            if (checkpointCoords.length === 0) {
+                // No checkpoints yet — only safe if we don't yet have a GPS fix either
+                if (BASE_LAT === 0 && BASE_LNG === 0) return true;
+                return distanceMeters(lat, lng, BASE_LAT, BASE_LNG) <= SAFE_RADIUS;
+            }
+            if (checkpointCoords.length === 1) {
+                return distanceMeters(lat, lng, checkpointCoords[0].lat, checkpointCoords[0].lng) <= SAFE_RADIUS;
+            }
+            return pointInPolygon(lat, lng, checkpointCoords);
+        }
+
+        // Redraws the safe zone layer based on current checkpointCoords
+        function updateSafeZone() {
+            if (!parentMap) return;
+            if (safeZoneLayer) { parentMap.removeLayer(safeZoneLayer); safeZoneLayer = null; }
+            if (safeZoneCircle) { parentMap.removeLayer(safeZoneCircle); safeZoneCircle = null; }
+
+            const GREEN = '#22c55e';
+            const opts  = { color: GREEN, fillColor: GREEN, fillOpacity: 0.08, weight: 2, dashArray: '8 6' };
+
+            if (checkpointCoords.length === 0) {
+                // Draw default circle only if we have a real GPS fix
+                if (BASE_LAT !== 0 && BASE_LNG !== 0) {
+                    safeZoneLayer = L.circle([BASE_LAT, BASE_LNG], { radius: SAFE_RADIUS, ...opts }).addTo(parentMap);
+                }
+            } else if (checkpointCoords.length === 1) {
+                safeZoneLayer = L.circle(
+                    [checkpointCoords[0].lat, checkpointCoords[0].lng],
+                    { radius: SAFE_RADIUS, ...opts }
+                ).addTo(parentMap);
+                parentMap.setView([checkpointCoords[0].lat, checkpointCoords[0].lng], 15);
+            } else {
+                const latlngs = checkpointCoords.map(c => [c.lat, c.lng]);
+                safeZoneLayer = L.polygon(latlngs, opts).addTo(parentMap);
+                parentMap.fitBounds(safeZoneLayer.getBounds(), { padding: [40, 40] });
+            }
+            // keep the legacy reference alive so showDangerAlert / resetDangerAlert still work
+            safeZoneCircle = safeZoneLayer;
+        }
+
+        // Load existing checkpoints from the backend and initialise checkpointCoords
+        async function loadExistingCheckpoints() {
+            try {
+                const res   = await fetch(`${API}/nodes`);
+                const nodes = await res.json();
+                if (!Array.isArray(nodes)) return;
+                checkpointCoords = [];
+                checkpointIndex  = 0;
+                const list = document.getElementById('steps-preview');
+                list.innerHTML   = '';
+                nodes.filter(n => !(n.visited || n.isVisited)).forEach((n, idx) => {
+                    // Use saved coords from DB; skip node entirely if it has no valid position
+                    const lat = (n.latitude  && n.latitude  !== 0) ? n.latitude  : null;
+                    const lng = (n.longitude && n.longitude !== 0) ? n.longitude : null;
+                    if (!lat || !lng) return;
+                    checkpointCoords.push({ lat, lng });
+                    checkpointIndex++;
+
+                    // Add checkpoint marker on map
+                    L.circleMarker([lat, lng], {
+                        radius: 7, color: '#fff', fillColor: '#22c55e', fillOpacity: 1, weight: 2
+                    }).bindTooltip(n.name || `Checkpoint ${idx + 1}`).addTo(parentMap);
+
+                    const item = document.createElement('div');
+                    item.className   = 'route-item';
+                    item.dataset.id  = n.id || '';
+                    item.dataset.lat = lat;
+                    item.dataset.lng = lng;
+                    item.innerHTML   = `
+                        <div>
+                            <div class="route-title">${n.name || 'Checkpoint'}</div>
+                            <div class="route-hint">${n.description || 'No description'}</div>
+                        </div>
+                        <button class="btn-mini-danger" type="button" onclick="removeCheckpoint(this)">Remove</button>
+                    `;
+                    list.appendChild(item);
+                });
+                updateSafeZone();
+            } catch (e) { /* ignore — no nodes yet */ }
+        }
 
         function switchView(name) {
             document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === name));
@@ -462,25 +654,25 @@
         }
 
         function initParentMap() {
-            parentMap = L.map('parent-live-map', { zoomControl: true }).setView([BASE_LAT, BASE_LNG], 14);
+            // Start at a wide Romania view — GPS detection will zoom in immediately
+            parentMap = L.map('parent-live-map', { zoomControl: true }).setView([45.9, 24.9], 7);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; OpenStreetMap'
             }).addTo(parentMap);
 
-            safeZoneCircle = L.circle([BASE_LAT, BASE_LNG], {
-                radius: SAFE_RADIUS,
-                color: '#22c55e', fillColor: '#22c55e',
-                fillOpacity: 0.06, weight: 2, dashArray: '8 6'
-            }).addTo(parentMap);
+            // Safe zone drawn after GPS + checkpoints load via updateSafeZone()
 
-            childLiveMarker = L.marker([BASE_LAT, BASE_LNG], {
+            // Marker starts at 0,0 until GPS/child position updates it
+            childLiveMarker = L.marker([45.9, 24.9], {
                 icon: L.divIcon({
                     className: 'parent-child-marker',
-                    html: '<div class="parent-pin">🧑‍🚀</div>',
+                    html: '<div class="gps-pulse-wrapper"><div class="pulse-ring"></div><div class="parent-pin">🧑‍🚀</div></div>',
                     iconSize: [44, 44], iconAnchor: [22, 22]
                 }),
                 zIndexOffset: 2000
             }).addTo(parentMap);
+
+            initMapClickForCheckpoint();
         }
 
         function updateChildMarkerOnMap(data) {
@@ -494,7 +686,10 @@
             childLiveMarker.setLatLng([lat, lng]);
             childLiveMarker.setIcon(L.divIcon({
                 className: 'parent-child-marker',
-                html: `<div class="parent-pin" title="${kidLabel} — ${heroName}">${emoji}</div>`,
+                html: `<div class="gps-pulse-wrapper${_parentMarkerDanger ? ' danger' : ''}">
+                         <div class="pulse-ring"></div>
+                         <div class="parent-pin" title="${kidLabel} — ${heroName}">${emoji}</div>
+                       </div>`,
                 iconSize: [44, 44], iconAnchor: [22, 22]
             }));
             childLiveMarker.bindTooltip(
@@ -517,12 +712,25 @@
         async function addCheckpoint() {
             const name = document.getElementById('checkpoint-name').value.trim();
             const hint = document.getElementById('checkpoint-hint').value.trim();
-            if (!name) return;
+            if (!name) {
+                Swal.fire({ title: 'Name required', text: 'Please enter a checkpoint name.', icon: 'warning', background: '#16162a', color: '#fff' });
+                return;
+            }
 
-            const angle   = (checkpointIndex * 72) * Math.PI / 180;
-            const offsetM = 120 + checkpointIndex * 40;
-            const lat = BASE_LAT + (offsetM / 111320) * Math.cos(angle);
-            const lng = BASE_LNG + (offsetM / (111320 * Math.cos(BASE_LAT * Math.PI / 180))) * Math.sin(angle);
+            // Use the position clicked on the map; fall back to auto-offset from GPS center
+            let lat, lng;
+            if (_mapClickLat !== null && _mapClickLng !== null) {
+                lat = _mapClickLat;
+                lng = _mapClickLng;
+            } else if (BASE_LAT !== 0 && BASE_LNG !== 0) {
+                const angle   = (checkpointIndex * 72) * Math.PI / 180;
+                const offsetM = 150 + checkpointIndex * 50;
+                lat = BASE_LAT + (offsetM / 111320) * Math.cos(angle);
+                lng = BASE_LNG + (offsetM / (111320 * Math.cos(BASE_LAT * Math.PI / 180))) * Math.sin(angle);
+            } else {
+                Swal.fire({ title: 'No position', text: 'Click on the map to select a position first, or wait for GPS to load.', icon: 'info', background: '#16162a', color: '#fff' });
+                return;
+            }
 
             const created = await fetch(`${API}/nodes/add`, {
                 method: 'POST',
@@ -536,11 +744,22 @@
             try { createdNode = await created.json(); } catch (e) { /* ignore */ }
             checkpointIndex++;
 
+            // Register coord for dynamic safe zone
+            checkpointCoords.push({ lat, lng });
+            updateSafeZone();
+
+            // Add marker on map
+            L.circleMarker([lat, lng], {
+                radius: 7, color: '#fff', fillColor: '#22c55e', fillOpacity: 1, weight: 2
+            }).bindTooltip(name).addTo(parentMap);
+
             const id   = createdNode && createdNode.id ? createdNode.id : null;
             const item = document.createElement('div');
-            item.className  = 'route-item';
-            item.dataset.id = id || '';
-            item.innerHTML  = `
+            item.className   = 'route-item';
+            item.dataset.id  = id || '';
+            item.dataset.lat = lat;
+            item.dataset.lng = lng;
+            item.innerHTML   = `
                 <div>
                     <div class="route-title">${name}</div>
                     <div class="route-hint">${hint || 'No description — SafeBot will guide the child'}</div>
@@ -550,14 +769,33 @@
             document.getElementById('steps-preview').appendChild(item);
             document.getElementById('checkpoint-name').value = '';
             document.getElementById('checkpoint-hint').value = '';
+
+            // Clear the pending map-click marker
+            _mapClickLat = null;
+            _mapClickLng = null;
+            if (_pendingMarker) { parentMap.removeLayer(_pendingMarker); _pendingMarker = null; }
         }
 
         async function removeCheckpoint(btnEl) {
             const row = btnEl.closest('.route-item');
             if (!row) return;
-            const id = row.dataset.id;
-            if (!id) { row.remove(); return; }
-            try { await fetch(`${API}/nodes/visit/${id}`, { method: 'POST' }); } catch (e) { /* ignore */ }
+            const id  = row.dataset.id;
+            const lat = parseFloat(row.dataset.lat);
+            const lng = parseFloat(row.dataset.lng);
+
+            if (id) {
+                try { await fetch(`${API}/nodes/visit/${id}`, { method: 'POST' }); } catch (e) { /* ignore */ }
+            }
+
+            // Remove from checkpointCoords and redraw safe zone
+            if (!isNaN(lat) && !isNaN(lng)) {
+                const idx = checkpointCoords.findIndex(c =>
+                    Math.abs(c.lat - lat) < 1e-8 && Math.abs(c.lng - lng) < 1e-8
+                );
+                if (idx !== -1) checkpointCoords.splice(idx, 1);
+                updateSafeZone();
+            }
+
             row.remove();
             refreshMissionProgress();
         }
@@ -575,11 +813,21 @@
             refreshMissionProgress();
         }
 
+        function _setPulse(danger) {
+            _parentMarkerDanger = danger;
+            const el = childLiveMarker?.getElement?.();
+            if (el) {
+                const wrapper = el.querySelector('.gps-pulse-wrapper');
+                if (wrapper) wrapper.classList.toggle('danger', danger);
+            }
+        }
+
         function showDangerAlert() {
             document.getElementById('danger-overlay').classList.add('visible');
             document.getElementById('hud-alert').style.display = 'block';
             document.getElementById('hud-alert').classList.add('danger');
             if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444' });
+            _setPulse(true);
 
             if (dangerModalOpen) return;
             dangerModalOpen = true;
@@ -621,6 +869,7 @@
             document.getElementById('danger-overlay').classList.remove('visible');
             document.getElementById('hud-alert').style.display = 'none';
             if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
+            _setPulse(false);
             try { await fetch(`${API}/parent/clear-alert`, { method: 'POST' }); } catch (e) { console.error(e); }
         }
 
@@ -629,7 +878,19 @@
                 const res  = await fetch(`${API}/child/position`);
                 const data = await res.json();
                 updateChildMarkerOnMap(data);
-                if (data.dangerActive) showDangerAlert();
+
+                if (data.dangerActive) {
+                    showDangerAlert();
+                } else if (data.latitude && data.longitude) {
+                    const safe = isInsideSafeZone(data.latitude, data.longitude);
+                    if (!safe) {
+                        showDangerAlert();
+                    } else if (!dangerModalOpen) {
+                        // Child is inside the safe zone — ensure zone is shown as green
+                        if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
+                        document.getElementById('hud-alert').style.display = 'none';
+                    }
+                }
             } catch (e) { console.error('Position poll failed', e); }
         }
 
@@ -707,8 +968,14 @@
             }
         }
 
-        window.onload = () => {
+        window.onload = async () => {
             initParentMap();
+            // 1. Detect real GPS to set the dynamic center
+            await new Promise(resolve => detectAndCenterOnGPS(resolve));
+            // 2. Load saved checkpoints from DB (draws safe zone)
+            await loadExistingCheckpoints();
+            // 3. If still no safe zone, draw default circle around GPS position
+            if (checkpointCoords.length === 0 && BASE_LAT !== 0) updateSafeZone();
             getCode();
             pollChildPosition();
             refreshMissionProgress();

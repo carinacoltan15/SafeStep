@@ -156,7 +156,7 @@
                 });
 
                 if (res.ok) {
-                    localStorage.setItem('parent_email', email);
+                    sessionStorage.setItem('parent_email', email);
                     window.location.href = 'parent_dash.html';
                 } else {
                     Swal.fire({

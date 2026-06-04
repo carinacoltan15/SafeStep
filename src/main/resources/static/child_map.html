@@ -189,8 +189,34 @@
         .radar-line.danger-active { background: conic-gradient(from 0deg, transparent 70%, rgba(239,68,68,0.55) 100%) !important; }
         @keyframes sweep { to { transform: rotate(360deg); } }
 
-        .child-avatar-marker { background: transparent; border: none; }
+        .child-avatar-marker { background: transparent; border: none; overflow: visible; }
+
+        /* ── GPS pulse wrapper ───────────────────────────────────────────── */
+        .gps-pulse-wrapper {
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+            width: 40px; height: 40px;
+        }
+        .pulse-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: rgba(34, 197, 94, 0.35);
+            animation: gps-pulse 1.8s ease-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .gps-pulse-wrapper.danger .pulse-ring {
+            background: rgba(239, 68, 68, 0.38);
+        }
+        @keyframes gps-pulse {
+            0%   { transform: scale(1);   opacity: 0.85; }
+            65%  { transform: scale(2.4); opacity: 0; }
+            100% { transform: scale(2.4); opacity: 0; }
+        }
+
         .child-pin {
+            position: relative; z-index: 1;
             width: 40px; height: 40px;
             background: linear-gradient(135deg, var(--neon-orange), #ea580c);
             border: 3px solid #fff;
@@ -643,10 +669,12 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const API = window.SAFESTEP_API;
-        const SAFE_RADIUS_M   = 400;
+        const SAFE_RADIUS_M    = 500;
         const MOVE_INTERVAL_MS = 2500;
         const METERS_PER_TICK  = 32;
-        const CENTER = { lat: 45.6427, lng: 25.5887 };
+        // Dynamic center — updated by real GPS; no hardcoded city assumed
+        let CENTER = { lat: 45.9, lng: 24.9 };
+        let _centerFromGps = false;   // true once a real GPS fix has set CENTER
 
         // --- Session persistence (localStorage) ---
         function getStoredChildName()   { return localStorage.getItem('childName') || localStorage.getItem('kid_name') || ''; }
@@ -787,28 +815,111 @@
         let simIntervalId = null;
         let gpsWatchId = null;
 
+        // Dynamic safe zone layer on child map
+        let childSafeZoneLayer = null;
+
+        // Ray-casting point-in-polygon
+        function pointInPolygon(lat, lng, coords) {
+            let inside = false;
+            for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+                const xi = coords[i].lat, yi = coords[i].lng;
+                const xj = coords[j].lat, yj = coords[j].lng;
+                if (((yi > lng) !== (yj > lng)) &&
+                    (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
+        // Build safe-zone coordinate list from active nodes (only those with real DB coords)
+        function _safeZoneCoords() {
+            return allNodes
+                .filter(n => !isNodeVisited(n) && n.latitude && n.longitude &&
+                             !(n.latitude === 0 && n.longitude === 0))
+                .map(n => ({ lat: n.latitude, lng: n.longitude }));
+        }
+
+        // Returns true if the child position is inside the current safe zone
+        function isInsideSafeZone(lat, lng) {
+            const coords = _safeZoneCoords();
+            if (coords.length === 0) {
+                // No valid checkpoints — safe only if we have a real GPS center
+                if (!_centerFromGps) return true;
+                return distanceMeters(lat, lng, CENTER.lat, CENTER.lng) <= SAFE_RADIUS_M;
+            }
+            if (coords.length === 1) {
+                return distanceMeters(lat, lng, coords[0].lat, coords[0].lng) <= SAFE_RADIUS_M;
+            }
+            return pointInPolygon(lat, lng, coords);
+        }
+
+        // Redraw the green safe zone on the child map based on active checkpoints
+        function updateChildSafeZone() {
+            if (childSafeZoneLayer) { map.removeLayer(childSafeZoneLayer); childSafeZoneLayer = null; }
+            const coords = _safeZoneCoords();
+            const GREEN  = '#22c55e';
+            const style  = { color: GREEN, fillColor: GREEN, fillOpacity: 0.07, weight: 1.5, dashArray: '6 8' };
+
+            if (coords.length === 0) {
+                // Draw default circle only around real GPS position
+                if (_centerFromGps) {
+                    childSafeZoneLayer = L.circle([CENTER.lat, CENTER.lng], { radius: SAFE_RADIUS_M, ...style }).addTo(map);
+                }
+            } else if (coords.length === 1) {
+                childSafeZoneLayer = L.circle([coords[0].lat, coords[0].lng], { radius: SAFE_RADIUS_M, ...style }).addTo(map);
+                map.setView([coords[0].lat, coords[0].lng], 15);
+            } else {
+                childSafeZoneLayer = L.polygon(coords.map(c => [c.lat, c.lng]), style).addTo(map);
+                map.fitBounds(childSafeZoneLayer.getBounds(), { padding: [30, 30] });
+            }
+        }
+
         const map = L.map('mini-map', { zoomControl: false, attributionControl: false })
-            .setView([CENTER.lat, CENTER.lng], 15);
+            .setView([CENTER.lat, CENTER.lng], 7);   // wide Romania view until GPS kicks in
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-        L.circle([CENTER.lat, CENTER.lng], {
-            radius: SAFE_RADIUS_M, color: '#a855f7', fillColor: '#a855f7',
-            fillOpacity: 0.06, weight: 1, dashArray: '6 8'
-        }).addTo(map);
+        // No hardcoded decorative circle — safe zone drawn dynamically via updateChildSafeZone()
+
+        // Detect real GPS position, update CENTER and re-center map
+        function initChildGPSCenter(onDone) {
+            if (!navigator.geolocation) { onDone?.(); return; }
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    CENTER.lat = pos.coords.latitude;
+                    CENTER.lng = pos.coords.longitude;
+                    _centerFromGps = true;
+                    childPos.lat = CENTER.lat;
+                    childPos.lng = CENTER.lng;
+                    map.setView([CENTER.lat, CENTER.lng], 15);
+                    if (childMarker) childMarker.setLatLng([CENTER.lat, CENTER.lng]);
+                    updateChildSafeZone();
+                    onDone?.();
+                },
+                () => { onDone?.(); },
+                { timeout: 8000, maximumAge: 60000, enableHighAccuracy: true }
+            );
+        }
 
         let childMarker;
 
-        function buildChildIcon(emoji) {
+        function buildChildIcon(emoji, isDanger = false) {
             return L.divIcon({
                 className: 'child-avatar-marker',
-                html: `<div class="child-pin">${emoji}</div>`,
+                html: `<div class="gps-pulse-wrapper${isDanger ? ' danger' : ''}">
+                         <div class="pulse-ring"></div>
+                         <div class="child-pin">${emoji}</div>
+                       </div>`,
                 iconSize: [40, 40], iconAnchor: [20, 20]
             });
         }
 
+        // Tracks whether the child is currently in danger (used when rebuilding icon)
+        let _markerIsDanger = false;
+
         function rebuildChildMarker() {
             if (childMarker) map.removeLayer(childMarker);
             childMarker = L.marker([childPos.lat, childPos.lng], {
-                icon: buildChildIcon(kidAvatar), zIndexOffset: 1000
+                icon: buildChildIcon(kidAvatar, _markerIsDanger), zIndexOffset: 1000
             }).addTo(map);
         }
         rebuildChildMarker();
@@ -826,10 +937,12 @@
 
         function ensureCoords(node, index) {
             if (node.latitude == null || node.longitude == null || (node.latitude === 0 && node.longitude === 0)) {
-                const angle  = (index * 72) * Math.PI / 180;
+                // Use dynamic GPS center (not hardcoded city)
+                const base    = _centerFromGps ? CENTER : childPos;
+                const angle   = (index * 72) * Math.PI / 180;
                 const offsetM = 120 + index * 40;
-                node.latitude  = CENTER.lat + (offsetM / 111320) * Math.cos(angle);
-                node.longitude = CENTER.lng + (offsetM / (111320 * Math.cos(CENTER.lat * Math.PI / 180))) * Math.sin(angle);
+                node.latitude  = base.lat + (offsetM / 111320) * Math.cos(angle);
+                node.longitude = base.lng + (offsetM / (111320 * Math.cos(base.lat * Math.PI / 180))) * Math.sin(angle);
             }
             return node;
         }
@@ -872,6 +985,14 @@
             clip.classList.toggle('safe-active',   !outside);
             line.classList.toggle('danger-active', outside);
             line.classList.toggle('safe-active',   !outside);
+
+            // Toggle pulse colour on the child marker without rebuilding it
+            _markerIsDanger = outside;
+            const el = childMarker?.getElement?.();
+            if (el) {
+                const wrapper = el.querySelector('.gps-pulse-wrapper');
+                if (wrapper) wrapper.classList.toggle('danger', outside);
+            }
         }
 
         async function syncPositionToServer() {
@@ -910,7 +1031,7 @@
 
         function getActiveTarget() {
             const active = allNodes.filter(n => !isNodeVisited(n));
-            if (!active.length) return { lat: CENTER.lat, lng: CENTER.lng };
+            if (!active.length) return { lat: childPos.lat, lng: childPos.lng };
             const idx = allNodes.findIndex(n => n.id === active[0].id);
             const n   = ensureCoords({ ...active[0] }, idx >= 0 ? idx : 0);
             return { lat: n.latitude, lng: n.longitude };
@@ -941,7 +1062,7 @@
                     `<strong>SafeBot:</strong> <strong>${Math.round(d)}</strong> m left to <strong>${node.name}</strong>`;
             }
 
-            const outside = distanceMeters(childPos.lat, childPos.lng, CENTER.lat, CENTER.lng) > SAFE_RADIUS_M;
+            const outside = !isInsideSafeZone(childPos.lat, childPos.lng);
             setRadarState(outside);
             if (outside) handleDangerZone(false);
             else { dangerSent = false; dangerSpoken = false; }
@@ -962,8 +1083,10 @@
         }
 
         function simulateDeviation() {
-            childPos.lat = CENTER.lat + (500 / 111320);
-            childPos.lng = CENTER.lng;
+            // Deviate 550 m north of current GPS center (or wherever child is)
+            const base = _centerFromGps ? CENTER : childPos;
+            childPos.lat = base.lat + (550 / 111320);
+            childPos.lng = base.lng;
             childMarker.setLatLng([childPos.lat, childPos.lng]);
             map.panTo([childPos.lat, childPos.lng]);
             dangerSent = false;
@@ -1054,7 +1177,7 @@
                             chip.style.borderColor = '';
                             chip.style.color       = '';
 
-                            const outside = distanceMeters(latitude, longitude, CENTER.lat, CENTER.lng) > SAFE_RADIUS_M;
+                            const outside = !isInsideSafeZone(latitude, longitude);
                             setRadarState(outside);
                             if (outside) handleDangerZone(false);
                             else { dangerSent = false; dangerSpoken = false; }
@@ -1175,6 +1298,7 @@
                 totalPoints = 0;
                 localStorage.setItem('safestep_points', '0');
             }
+            updateChildSafeZone();   // redraw green safe zone from current checkpoints
             renderCheckpointMarkers();
             updateProgressUI();
             renderCards();
@@ -1223,7 +1347,7 @@
                 await new Promise(r => setTimeout(r, 450));
             }
             currentStep = null;
-            childPos = { lat: CENTER.lat, lng: CENTER.lng };
+            // Keep childPos at last known position instead of resetting to a hardcoded center
             rebuildChildMarker();
             await updateView();
             updateProgressUI();
@@ -1289,13 +1413,16 @@
         }
 
         window.onload = () => {
-            updateProgressUI();
-            updateView();
-            syncPositionToServer();
-            setInterval(updateView, 5000);
-            simIntervalId = setInterval(simulateChildMovement, MOVE_INTERVAL_MS);
-            document.getElementById('label-sim').classList.add('active-label');
-            if (hasStoredSession) { missionStarted = true; greetChild(); }
+            // Detect real GPS first — re-centers map and sets CENTER before anything renders
+            initChildGPSCenter(() => {
+                updateProgressUI();
+                updateView();
+                syncPositionToServer();
+                setInterval(updateView, 5000);
+                simIntervalId = setInterval(simulateChildMovement, MOVE_INTERVAL_MS);
+                document.getElementById('label-sim').classList.add('active-label');
+                if (hasStoredSession) { missionStarted = true; greetChild(); }
+            });
         };
     </script>
 </body>
