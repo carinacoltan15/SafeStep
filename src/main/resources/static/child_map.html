@@ -592,17 +592,41 @@
             opacity: 1;
             pointer-events: auto;
         }
-        #notification-banner.nb-danger  { background: #fef2f2; color: #7f1d1d; border-bottom-color: #fca5a5; }
+        #notification-banner.nb-danger  { background: #fee2e2; color: #450a0a; border-bottom-color: #dc2626; font-weight: 700; letter-spacing: 0.04em; }
         #notification-banner.nb-safe,
         #notification-banner.nb-success { background: #f0fdf4; color: #14532d; border-bottom-color: #86efac; }
         #notification-banner.nb-warning { background: #fffbeb; color: #78350f; border-bottom-color: #fcd34d; }
         #notification-banner.nb-info    { background: #eff6ff; color: #1e3a8a; border-bottom-color: #93c5fd; }
+
+        /* ── Alarm vignette border (screen edges only, map stays clear) ─── */
+        #alarm-vignette {
+            position: fixed;
+            inset: 0;
+            z-index: 9997;
+            pointer-events: none;
+            border: 8px solid transparent;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        #alarm-vignette.active {
+            opacity: 1;
+            border-color: #ef4444;
+            box-shadow: inset 0 0 55px rgba(239, 68, 68, 0.42);
+            animation: vignette-pulse 1.4s ease-in-out infinite alternate;
+        }
+        @keyframes vignette-pulse {
+            from { border-color: rgba(239,68,68,0.72); box-shadow: inset 0 0 32px rgba(239,68,68,0.28); }
+            to   { border-color: rgba(239,68,68,1.00); box-shadow: inset 0 0 68px rgba(239,68,68,0.56); }
+        }
     </style>
 </head>
 <body class="child-app">
 
     <!-- Non-blocking notification banner (tap to dismiss) -->
     <div id="notification-banner" role="status" aria-live="polite"></div>
+
+    <!-- Alarm vignette: red border pulse on screen edges, never blocks content -->
+    <div id="alarm-vignette" aria-hidden="true"></div>
 
     <!-- Pairing overlay (shown before radar starts) -->
     <div id="pairing-overlay" class="show">
@@ -638,7 +662,7 @@
     <!-- Mission Accomplished overlay (child view) -->
     <div id="mission-accomplished">
         <div class="accomplished-card">
-            <div class="accomplished-title">MISSION ACCOMPLISHED! 🏆</div>
+            <div class="accomplished-title">MISSION ACCOMPLISHED</div>
             <div class="accomplished-msg" id="accomplished-msg">
                 Great job! You reached your destination safely.
             </div>
@@ -708,6 +732,52 @@
             const b = document.getElementById('notification-banner');
             if (b) b.addEventListener('click', () => b.classList.remove('nb-visible'));
         })();
+
+        /* ── Alarm audio (Web Audio API beep) ─────────────────────────── */
+        let _alarmAudioCtx    = null;
+        let _alarmIntervalId  = null;
+
+        function _getAudioCtx() {
+            if (!_alarmAudioCtx) {
+                try { _alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+                catch (e) { return null; }
+            }
+            if (_alarmAudioCtx.state === 'suspended') _alarmAudioCtx.resume().catch(() => {});
+            return _alarmAudioCtx;
+        }
+
+        // Initialise AudioContext on first user gesture so it's ready before any alert
+        document.addEventListener('click', () => _getAudioCtx(), { once: true });
+
+        function _playBeep() {
+            const ctx = _getAudioCtx();
+            if (!ctx) return;
+            try {
+                const t    = ctx.currentTime;
+                const osc  = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(940, t);
+                osc.frequency.setValueAtTime(680, t + 0.18);
+                gain.gain.setValueAtTime(0.28, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+                osc.start(t);
+                osc.stop(t + 0.48);
+            } catch (e) { /* ignore audio errors */ }
+        }
+
+        function startAlarmBeep() {
+            if (_alarmIntervalId) return;
+            _playBeep();
+            _alarmIntervalId = setInterval(_playBeep, 3500);
+        }
+
+        function stopAlarmBeep() {
+            if (_alarmIntervalId) { clearInterval(_alarmIntervalId); _alarmIntervalId = null; }
+        }
+        /* ─────────────────────────────────────────────────────────────── */
 
         function showBanner(message, type = 'info', duration = 4000) {
             const b = document.getElementById('notification-banner');
@@ -1033,12 +1103,17 @@
         }
 
         function setRadarState(outside) {
-            const clip = document.getElementById('map-clip');
-            const line = document.getElementById('radar-line');
+            const clip     = document.getElementById('map-clip');
+            const line     = document.getElementById('radar-line');
+            const vignette = document.getElementById('alarm-vignette');
+
             clip.classList.toggle('danger-active', outside);
             clip.classList.toggle('safe-active',   !outside);
             line.classList.toggle('danger-active', outside);
             line.classList.toggle('safe-active',   !outside);
+
+            // Vignette border on screen edges — never blocks map or buttons
+            if (vignette) vignette.classList.toggle('active', outside);
 
             // Toggle pulse colour on the child marker without rebuilding it
             _markerIsDanger = outside;
@@ -1048,13 +1123,15 @@
                 if (wrapper) wrapper.classList.toggle('danger', outside);
             }
 
-            // Show banner only when the state actually changes (not on every GPS tick)
+            // Show banner and control audio only when state actually changes
             if (_lastRadarOutside !== outside) {
                 _lastRadarOutside = outside;
                 if (outside) {
-                    showBanner('AVERTISMENT: Copilul a parasit zona configurata', 'danger', 0);
+                    showBanner('AVERTISMENT: Zona configurata a fost parasita', 'danger', 0);
+                    startAlarmBeep();
                 } else {
                     showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
+                    stopAlarmBeep();
                 }
             }
         }
@@ -1431,8 +1508,8 @@
             const name = (getStoredChildName() || kidName || '').trim();
             document.getElementById('accomplished-msg').textContent =
                 name
-                    ? `Great job, ${name}! You reached your destination safely. You earned +500 XP! 🚀`
-                    : 'Great job! You reached your destination safely. You earned +500 XP! 🚀';
+                    ? `Great job, ${name}! You reached your destination safely. You earned +500 XP!`
+                    : 'Great job! You reached your destination safely. You earned +500 XP!';
 
             confetti({ particleCount: 300, spread: 100, origin: { y: 0.55 } });
             speakSafeBot(

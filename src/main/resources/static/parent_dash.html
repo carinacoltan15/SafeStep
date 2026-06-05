@@ -41,18 +41,23 @@
         .app-shell, #danger-overlay { position: relative; z-index: 2; }
 
         #danger-overlay {
-            display: none;
             position: fixed;
             inset: 0;
             z-index: 10000;
-            background: rgba(160, 0, 80, 0.88);
-            animation: pulse-red 1.2s ease-in-out infinite alternate;
             pointer-events: none;
+            border: 8px solid transparent;
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
-        #danger-overlay.visible { display: block; }
-        @keyframes pulse-red {
-            from { background: rgba(180, 0, 90, 0.78); }
-            to   { background: rgba(255, 0, 120, 0.90); }
+        #danger-overlay.visible {
+            opacity: 1;
+            border-color: #ef4444;
+            box-shadow: inset 0 0 55px rgba(239, 68, 68, 0.42);
+            animation: vignette-pulse 1.4s ease-in-out infinite alternate;
+        }
+        @keyframes vignette-pulse {
+            from { border-color: rgba(239,68,68,0.72); box-shadow: inset 0 0 32px rgba(239,68,68,0.28); }
+            to   { border-color: rgba(239,68,68,1.00); box-shadow: inset 0 0 68px rgba(239,68,68,0.56); }
         }
 
         .map-hud {
@@ -375,7 +380,7 @@
             opacity: 1;
             pointer-events: auto;
         }
-        #notification-banner.nb-danger  { background: #fef2f2; color: #7f1d1d; border-bottom-color: #fca5a5; }
+        #notification-banner.nb-danger  { background: #fee2e2; color: #450a0a; border-bottom-color: #dc2626; font-weight: 700; letter-spacing: 0.04em; }
         #notification-banner.nb-safe,
         #notification-banner.nb-success { background: #f0fdf4; color: #14532d; border-bottom-color: #86efac; }
         #notification-banner.nb-warning { background: #fffbeb; color: #78350f; border-bottom-color: #fcd34d; }
@@ -575,7 +580,7 @@
                         </div>`,
                         iconSize: [22, 22], iconAnchor: [11, 11]
                     })
-                }).bindTooltip('📍 Position selected — fill the form and click Add', {
+                }).bindTooltip('Pozitie selectata — completati formularul si apasati Add', {
                     permanent: true, direction: 'top',
                     className: 'leaflet-hero-tooltip'
                 }).addTo(parentMap);
@@ -880,7 +885,7 @@
             // Show banner only once per danger event (not on every poll tick)
             if (_lastDangerState !== 'danger') {
                 _lastDangerState = 'danger';
-                showBanner('AVERTISMENT: Copilul a parasit zona configurata', 'danger', 0);
+                showBanner('AVERTISMENT: Zona configurata a fost parasita', 'danger', 0);
             }
         }
 
