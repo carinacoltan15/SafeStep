@@ -540,6 +540,11 @@
         let parentMap, childLiveMarker, safeZoneCircle;
         // Tracks pulse colour so setIcon rebuilds keep the correct state
         let _parentMarkerDanger = false;
+        // Stores the last known child coordinates for instant safe-zone rechecks
+        let _lastChildLat = null;
+        let _lastChildLng = null;
+        // True after the parent map has been centred on the child once
+        let _parentMapCenteredOnChild = false;
 
         // Pending map-click position for next checkpoint placement
         let _mapClickLat = null;
@@ -741,6 +746,10 @@
             const heroName = AVATAR_NAMES[emoji] || 'Hero';
             const kidLabel = data.kidName || 'Explorer';
 
+            // Store last known child position so safe-zone rechecks can use it instantly
+            _lastChildLat = lat;
+            _lastChildLng = lng;
+
             childLiveMarker.setLatLng([lat, lng]);
             childLiveMarker.setIcon(L.divIcon({
                 className: 'parent-child-marker',
@@ -754,7 +763,12 @@
                 `<strong>${kidLabel}</strong><br>${heroName} ${emoji}`,
                 { permanent: false, direction: 'top', className: 'leaflet-hero-tooltip' }
             );
-            parentMap.panTo([lat, lng], { animate: true, duration: 0.8 });
+
+            // Centre the parent map on the child only on the very first valid position update
+            if (!_parentMapCenteredOnChild) {
+                _parentMapCenteredOnChild = true;
+                parentMap.setView([lat, lng], Math.max(parentMap.getZoom(), 15), { animate: true });
+            }
 
             document.getElementById('hud-child').textContent =
                 `Child: ${kidLabel} ${emoji} · ${heroName}`;
@@ -803,9 +817,10 @@
             try { createdNode = await created.json(); } catch (e) { /* ignore */ }
             checkpointIndex++;
 
-            // Register coord for dynamic safe zone
+            // Register coord for dynamic safe zone and immediately recheck child status
             checkpointCoords.push({ lat, lng });
             updateSafeZone();
+            _recheckSafeStatus();
 
             // Add marker on map
             L.circleMarker([lat, lng], {
@@ -846,13 +861,14 @@
                 try { await fetch(`${API}/nodes/visit/${id}`, { method: 'POST' }); } catch (e) { /* ignore */ }
             }
 
-            // Remove from checkpointCoords and redraw safe zone
+            // Remove from checkpointCoords, redraw safe zone and immediately recheck status
             if (!isNaN(lat) && !isNaN(lng)) {
                 const idx = checkpointCoords.findIndex(c =>
                     Math.abs(c.lat - lat) < 1e-8 && Math.abs(c.lng - lng) < 1e-8
                 );
                 if (idx !== -1) checkpointCoords.splice(idx, 1);
                 updateSafeZone();
+                _recheckSafeStatus();
             }
 
             row.remove();
@@ -872,6 +888,27 @@
             if (el) {
                 const wrapper = el.querySelector('.gps-pulse-wrapper');
                 if (wrapper) wrapper.classList.toggle('danger', danger);
+            }
+        }
+
+        // Rechecks safe/danger status immediately using the last known child position.
+        // Called after any change to checkpointCoords (add / remove checkpoint) so the
+        // parent sees the correct state without waiting for the next poll cycle.
+        function _recheckSafeStatus() {
+            if (_lastChildLat === null || _lastChildLng === null) return;
+            const safe = isInsideSafeZone(_lastChildLat, _lastChildLng);
+            if (safe) {
+                if (_lastDangerState === 'danger') {
+                    document.getElementById('danger-overlay').classList.remove('visible');
+                    document.getElementById('hud-alert').style.display = 'none';
+                    document.getElementById('hud-alert').classList.remove('danger');
+                    if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
+                    _setPulse(false);
+                    _lastDangerState = 'safe';
+                    showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
+                }
+            } else {
+                showDangerAlert();
             }
         }
 

@@ -1191,8 +1191,8 @@
                 childPos.lng += (stepM / (111320 * Math.cos(childPos.lat * Math.PI / 180))) * Math.sin(bearing);
             }
 
+            // Only update marker position — map stays where user left it
             childMarker.setLatLng([childPos.lat, childPos.lng]);
-            map.panTo([childPos.lat, childPos.lng], { animate: true, duration: 0.85 });
 
             const active = allNodes.filter(n => !isNodeVisited(n));
             if (active.length) {
@@ -1310,8 +1310,8 @@
                             childPos.lat = latitude;
                             childPos.lng = longitude;
 
+                            // Only update marker position — map stays where user left it
                             childMarker.setLatLng([latitude, longitude]);
-                            map.setView([latitude, longitude], map.getZoom(), { animate: true });
 
                             chip.textContent       = `GPS Active — ±${Math.round(accuracy)} m`;
                             chip.style.background  = '';
