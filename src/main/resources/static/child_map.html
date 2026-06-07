@@ -301,132 +301,233 @@
             color: #93c5fd; font-size: 0.68rem; font-weight: 700;
         }
 
-        /* ─── Pairing overlay ─── */
+        /* ─── Pairing overlay — full-screen 3-step wizard ─── */
         #pairing-overlay {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(10, 10, 22, 0.92);
+            background: rgba(7, 7, 18, 0.97);
             z-index: 9999;
-            padding: 18px;
+            padding: max(32px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
             align-items: center;
             justify-content: center;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
         #pairing-overlay.show { display: flex; }
         #pairing-overlay.fade-out { animation: fadeOut 0.45s ease forwards; }
         @keyframes fadeOut { to { opacity: 0; visibility: hidden; } }
 
         .pairing-card {
-            width: min(440px, 100%);
-            background: rgba(22,22,42,0.98);
-            border: 1px solid rgba(0,255,255,0.16);
-            border-radius: 18px;
-            box-shadow: 0 24px 80px rgba(0,0,0,0.75);
-            padding: 18px;
-        }
-        .pairing-title  { font-weight: 900; font-size: 1.2rem; margin-bottom: 8px; color: #fff; }
-        .pairing-sub    { color: rgba(255,255,255,0.65); font-size: 0.9rem; line-height: 1.5; margin-bottom: 14px; }
-        .avatar-carousel {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 8px;
-            margin: 12px 0 14px;
-        }
-        @media (max-width: 400px) {
-            .avatar-carousel { grid-template-columns: repeat(5, 1fr); gap: 6px; }
-        }
-        .avatar-pill {
-            border-radius: 14px;
-            padding: 12px 10px;
-            text-align: center;
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(138,43,226,0.22);
-            cursor: pointer;
-            transition: var(--transition);
-            font-size: 1.3rem;
-            box-shadow: 0 0 12px rgba(138,43,226,0.08);
-        }
-        .avatar-pill:not(.locked):hover { transform: translateY(-2px); box-shadow: 0 0 18px rgba(0,255,255,0.14); }
-        .avatar-pill.active {
-            border-color: rgba(0,255,255,0.45);
-            box-shadow: 0 0 22px rgba(0,255,255,0.22);
-            background: rgba(0,255,255,0.08);
-        }
-        .avatar-pill.locked {
-            opacity: 0.38;
-            cursor: not-allowed;
-            filter: grayscale(0.5);
-        }
-        .xp-label {
-            display: block;
-            margin-top: 3px;
-            font-size: 0.50rem;
-            font-weight: 700;
-            color: rgba(255,255,255,0.48);
-            line-height: 1.2;
-        }
-        .pairing-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .pairing-row input { margin-bottom: 0; }
-        .pairing-actions { margin-top: 14px; display: grid; gap: 10px; }
-
-        /* ─── 3-step wizard ─── */
-        .wizard-step { display: none; }
-        .wizard-step.active {
-            display: block;
-            animation: stepIn 0.30s ease both;
-        }
-        @keyframes stepIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to   { opacity: 1; transform: translateY(0);    }
-        }
-        .avatar-bubble-wrap {
+            width: min(480px, 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 16px;
+            padding: 0;
         }
-        .avatar-bubble {
-            width: 90px; height: 90px;
+        .pairing-title {
+            font-weight: 900;
+            font-size: clamp(1.65rem, 6vw, 2.2rem);
+            color: #fff;
+            text-align: center;
+            margin-bottom: 10px;
+            letter-spacing: -0.02em;
+            line-height: 1.15;
+        }
+        .pairing-sub {
+            color: rgba(255,255,255,0.52);
+            font-size: 1rem;
+            line-height: 1.55;
+            text-align: center;
+            margin-bottom: 28px;
+            max-width: 340px;
+        }
+
+        /* ─── Step 1: name input ─── */
+        .name-input-bubble {
+            width: 100%;
+            max-width: 380px;
+            padding: 18px 24px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            text-align: center;
+            background: rgba(0,255,255,0.06);
+            border: 2px solid rgba(0,255,255,0.25);
+            border-radius: 22px;
+            color: #fff;
+            outline: none;
+            margin-bottom: 22px;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            font-family: 'Outfit', sans-serif;
+        }
+        .name-input-bubble::placeholder { color: rgba(255,255,255,0.28); font-weight: 500; font-size: 1rem; }
+        .name-input-bubble:focus {
+            border-color: rgba(0,255,255,0.62);
+            box-shadow: 0 0 32px rgba(0,255,255,0.18);
+        }
+
+        /* ─── Step 2: large avatar grid ─── */
+        .avatar-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            width: 100%;
+            max-width: 420px;
+            margin-bottom: 20px;
+        }
+        @media (min-width: 440px) {
+            .avatar-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        .avatar-card {
+            position: relative;
+            border-radius: 20px;
+            padding: 22px 10px 14px;
+            text-align: center;
+            background: rgba(255,255,255,0.05);
+            border: 2.5px solid rgba(138,43,226,0.22);
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .avatar-card .av-emoji {
+            font-size: 3rem;
+            display: block;
+            line-height: 1.1;
+            margin-bottom: 8px;
+        }
+        .avatar-card .av-label {
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: rgba(255,255,255,0.62);
+            letter-spacing: 0.3px;
+            display: block;
+        }
+        .avatar-card:not(.locked):hover {
+            transform: translateY(-4px);
+            border-color: rgba(0,255,255,0.42);
+            box-shadow: 0 0 28px rgba(0,255,255,0.18);
+        }
+        .avatar-card.selected {
+            border-color: #22c55e;
+            box-shadow: 0 0 0 2px #22c55e, 0 0 44px rgba(34,197,94,0.52);
+            background: rgba(34,197,94,0.10);
+            transform: translateY(-3px);
+        }
+        .avatar-card.locked {
+            opacity: 0.33;
+            cursor: not-allowed;
+            filter: grayscale(0.55);
+        }
+        .lock-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 10px;
+            pointer-events: none;
+        }
+        .lock-text {
+            font-size: 0.56rem;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            color: rgba(255,255,255,0.48);
+            text-transform: uppercase;
+        }
+        .lock-xp {
+            font-size: 0.62rem;
+            font-weight: 800;
+            color: rgba(253,211,77,0.82);
+            margin-top: 2px;
+        }
+
+        /* ─── Step 3: confirm screen ─── */
+        .chosen-avatar-large {
+            width: 128px; height: 128px;
             border-radius: 50%;
-            background: linear-gradient(135deg, rgba(138,43,226,0.35), rgba(0,255,255,0.18));
-            border: 3px solid rgba(0,255,255,0.42);
-            box-shadow: 0 0 32px rgba(0,255,255,0.22);
+            background: linear-gradient(135deg, rgba(138,43,226,0.42), rgba(0,255,255,0.24));
+            border: 4px solid rgba(0,255,255,0.55);
+            box-shadow: 0 0 0 8px rgba(0,255,255,0.08), 0 0 60px rgba(0,255,255,0.28);
             display: grid;
             place-items: center;
-            font-size: 46px;
-            animation: avatarIn 0.45s cubic-bezier(0.22,1,0.36,1) both;
+            font-size: 62px;
+            margin-bottom: 20px;
+            animation: avatarIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
         }
         @keyframes avatarIn {
-            from { opacity: 0; transform: scale(0.55); }
-            to   { opacity: 1; transform: scale(1);    }
+            from { opacity: 0; transform: scale(0.5); }
+            to   { opacity: 1; transform: scale(1);   }
         }
-        .name-display-bubble {
-            background: rgba(0,255,255,0.07);
-            border: 1px solid rgba(0,255,255,0.22);
-            border-radius: 14px;
-            padding: 10px 24px;
-            font-weight: 800;
-            font-size: 1rem;
-            color: #e0f2fe;
-            text-align: center;
-            min-width: 130px;
-            letter-spacing: 0.2px;
-        }
-        .btn-back {
+        .info-bubble {
             width: 100%;
-            padding: 9px 12px;
-            border-radius: 14px;
+            max-width: 360px;
+            padding: 16px 24px;
+            border-radius: 20px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 14px;
+            letter-spacing: 0.2px;
+            box-sizing: border-box;
+        }
+        .info-bubble.name-bubble {
+            background: rgba(0,255,255,0.07);
+            border: 2px solid rgba(0,255,255,0.28);
+            color: #e0f2fe;
+            display: block;
+        }
+        .info-bubble.code-bubble {
+            background: rgba(255,255,255,0.04);
+            border: 2px solid rgba(168,85,247,0.38);
+            color: #fff;
+            font-size: 1.3rem;
+            letter-spacing: 5px;
+            outline: none;
+            font-family: 'Outfit', sans-serif;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .info-bubble.code-bubble::placeholder {
+            color: rgba(255,255,255,0.22);
+            letter-spacing: 2px;
+            font-size: 0.88rem;
+            font-weight: 500;
+        }
+        .info-bubble.code-bubble:focus {
+            border-color: rgba(168,85,247,0.68);
+            box-shadow: 0 0 30px rgba(138,43,226,0.24);
+        }
+
+        /* ─── Wizard structure ─── */
+        .wizard-step { display: none; width: 100%; }
+        .wizard-step.active {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: stepIn 0.34s cubic-bezier(0.22,1,0.36,1) both;
+        }
+        @keyframes stepIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+        .pairing-actions { margin-top: 4px; display: grid; gap: 10px; width: 100%; max-width: 380px; }
+        .btn-back {
+            width: 100%; max-width: 380px;
+            padding: 12px;
+            border-radius: 16px;
             border: 1px solid rgba(255,255,255,0.10);
             background: transparent;
-            color: rgba(255,255,255,0.45);
-            font-size: 0.75rem;
+            color: rgba(255,255,255,0.42);
+            font-size: 0.80rem;
             font-weight: 700;
             cursor: pointer;
-            margin-top: 6px;
+            margin-top: 8px;
             transition: var(--transition);
         }
-        .btn-back:hover { color: rgba(255,255,255,0.78); border-color: rgba(255,255,255,0.22); }
+        .btn-back:hover { color: rgba(255,255,255,0.80); border-color: rgba(255,255,255,0.22); }
         .btn-start {
             width: 100%;
             padding: 14px 16px;
@@ -700,7 +801,7 @@
     <!-- Alarm vignette: red border pulse on screen edges, never blocks content -->
     <div id="alarm-vignette" aria-hidden="true"></div>
 
-    <!-- Pairing overlay — 3-step wizard -->
+    <!-- Pairing overlay — full-screen 3-step wizard -->
     <div id="pairing-overlay" class="show">
         <div class="pairing-card">
 
@@ -708,26 +809,28 @@
             <div id="step-1" class="wizard-step active">
                 <div class="pairing-title">What is your name?</div>
                 <div class="pairing-sub">Tell us who you are before the mission begins.</div>
-                <input type="text" id="kid-name-input" placeholder="Your name" autocomplete="nickname">
+                <input type="text" id="kid-name-input" class="name-input-bubble" placeholder="Your name..." autocomplete="nickname">
                 <div class="pairing-actions">
                     <button id="btn-step1-next" class="btn-start" type="button" onclick="goToStep2()" disabled>NEXT</button>
                 </div>
             </div>
 
-            <!-- Step 2: Avatar selection -->
+            <!-- Step 2: Avatar selection — large interactive cards -->
             <div id="step-2" class="wizard-step">
                 <div class="pairing-title" id="step2-greeting">Choose your avatar</div>
                 <div class="pairing-sub">Earn XP to unlock more heroes.</div>
-                <div class="avatar-carousel" id="avatar-carousel"></div>
+                <div class="avatar-grid" id="avatar-grid"></div>
+                <div class="pairing-actions">
+                    <button id="btn-step2-next" class="btn-start" type="button" onclick="proceedToStep3()" disabled>NEXT</button>
+                </div>
+                <button class="btn-back" type="button" onclick="goToStep(1)">Back</button>
             </div>
 
-            <!-- Step 3: Confirm + pairing code -->
+            <!-- Step 3: Chosen avatar + name + pairing code -->
             <div id="step-3" class="wizard-step">
-                <div class="avatar-bubble-wrap">
-                    <div class="avatar-bubble" id="chosen-avatar-bubble"></div>
-                    <div class="name-display-bubble" id="name-display-bubble"></div>
-                </div>
-                <input type="text" id="pair-code-input" placeholder="Pairing code (6 characters)" maxlength="6" style="text-transform:uppercase;" autocomplete="one-time-code">
+                <div class="chosen-avatar-large" id="chosen-avatar-bubble"></div>
+                <div class="info-bubble name-bubble" id="name-display-bubble"></div>
+                <input type="text" id="pair-code-input" class="info-bubble code-bubble" placeholder="PAIRING CODE" maxlength="6" style="text-transform:uppercase;" autocomplete="one-time-code">
                 <div class="pairing-actions">
                     <button id="btn-start-mission" class="btn-start" type="button" onclick="startMission()" disabled>START MISSION</button>
                     <button class="btn-secondary" type="button" onclick="demoFill()">Demo Autofill</button>
@@ -934,30 +1037,56 @@
             goToStep(2);
         }
 
+        // Renders large interactive avatar cards with XP-based locking
         function renderAvatarGrid() {
             const currentXp = parseInt(localStorage.getItem('safestep_points') || '0', 10);
-            const container = document.getElementById('avatar-carousel');
+            const container = document.getElementById('avatar-grid');
             container.innerHTML = '';
+            // Reset step-2 NEXT button
+            const btnNext2 = document.getElementById('btn-step2-next');
+            btnNext2.disabled = true;
+            btnNext2.classList.remove('enabled');
+
             AVATAR_CATALOG.forEach(av => {
                 const locked = currentXp < av.xp;
-                const pill   = document.createElement('div');
-                pill.className = 'avatar-pill' + (locked ? ' locked' : '');
-                pill.title     = av.label;
+                const card   = document.createElement('div');
+                card.className = 'avatar-card' + (locked ? ' locked' : '');
+                card.title     = av.label;
+
                 if (locked) {
-                    pill.innerHTML = av.emoji + '<span class="xp-label">' + av.xp + ' XP</span>';
+                    card.innerHTML =
+                        '<span class="av-emoji">' + av.emoji + '</span>' +
+                        '<span class="av-label">' + av.label + '</span>' +
+                        '<div class="lock-overlay">' +
+                            '<span class="lock-text">LOCKED</span>' +
+                            '<span class="lock-xp">Necesita ' + av.xp + ' XP</span>' +
+                        '</div>';
                 } else {
-                    pill.innerHTML = av.emoji;
-                    pill.addEventListener('click', () => selectAvatarAndAdvance(av.emoji));
+                    card.innerHTML =
+                        '<span class="av-emoji">' + av.emoji + '</span>' +
+                        '<span class="av-label">' + av.label + '</span>';
+                    card.addEventListener('click', () => selectAvatarCard(av.emoji, card));
                 }
-                container.appendChild(pill);
+                container.appendChild(card);
             });
         }
 
-        function selectAvatarAndAdvance(emoji) {
+        // Highlights the selected card with green glow; enables NEXT button
+        function selectAvatarCard(emoji, cardEl) {
+            document.querySelectorAll('.avatar-card').forEach(c => c.classList.remove('selected'));
+            cardEl.classList.add('selected');
             kidAvatar = emoji;
             localStorage.setItem('kid_avatar', emoji);
-            document.getElementById('hud-avatar').textContent          = emoji;
-            document.getElementById('chosen-avatar-bubble').textContent = emoji;
+            document.getElementById('hud-avatar').textContent = emoji;
+            const btnNext2 = document.getElementById('btn-step2-next');
+            btnNext2.disabled = false;
+            btnNext2.classList.add('enabled');
+        }
+
+        // Advances from step 2 to step 3 after an avatar has been selected
+        function proceedToStep3() {
+            if (!kidAvatar) return;
+            document.getElementById('chosen-avatar-bubble').textContent = kidAvatar;
             document.getElementById('name-display-bubble').textContent  = kidName;
             document.getElementById('pair-code-input').value            = '';
             const btnStart = document.getElementById('btn-start-mission');
@@ -996,27 +1125,27 @@
         function demoFill() {
             const savedName = localStorage.getItem('kid_name') || 'Alex';
             const savedCode = (getStoredPairingCode() || '').toUpperCase();
-            // Fill name field (step 1)
+            // Fill name (step 1) and set kidName
             document.getElementById('kid-name-input').value = savedName;
             kidName = savedName;
             document.getElementById('hud-name').textContent = savedName;
+            const btnNext1 = document.getElementById('btn-step1-next');
+            btnNext1.disabled = false;
+            btnNext1.classList.add('enabled');
             // Select first free avatar
-            const av  = AVATAR_CATALOG.find(a => a.xp === 0) || AVATAR_CATALOG[0];
+            const av = AVATAR_CATALOG.find(a => a.xp === 0) || AVATAR_CATALOG[0];
             kidAvatar = av.emoji;
             localStorage.setItem('kid_avatar', av.emoji);
             document.getElementById('hud-avatar').textContent          = av.emoji;
             document.getElementById('chosen-avatar-bubble').textContent = av.emoji;
             document.getElementById('name-display-bubble').textContent  = savedName;
-            // Fill code field and jump to step 3
+            // Fill pairing code and jump straight to step 3
             document.getElementById('pair-code-input').value = savedCode;
             goToStep(3);
-            const btnStart = document.getElementById('btn-start-mission');
             const codeOk   = savedCode.length === 6;
+            const btnStart = document.getElementById('btn-start-mission');
             btnStart.disabled = !codeOk;
             btnStart.classList.toggle('enabled', codeOk);
-            const btnNext  = document.getElementById('btn-step1-next');
-            btnNext.disabled = false;
-            btnNext.classList.add('enabled');
             rebuildChildMarker();
         }
 
