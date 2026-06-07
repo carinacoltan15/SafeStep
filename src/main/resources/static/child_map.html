@@ -793,7 +793,7 @@
         /* ─────────────────────────────────────────────────────────────── */
 
         const API = window.SAFESTEP_API;
-        const SAFE_RADIUS_M    = 500;
+        const SAFE_RADIUS_M    = 200;
         const MOVE_INTERVAL_MS = 2500;
         const METERS_PER_TICK  = 32;
         // Dynamic center — updated by real GPS; no hardcoded city assumed
@@ -939,8 +939,9 @@
         let simIntervalId = null;
         let gpsWatchId = null;
 
-        // Dynamic safe zone layer on child map
-        let childSafeZoneLayer = null;
+        // Dynamic safe zone layers on child map (one L.circle per checkpoint)
+        let childSafeZoneLayer  = null;
+        let childSafeZoneLayers = [];
 
         // Ray-casting point-in-polygon
         function pointInPolygon(lat, lng, coords) {
@@ -964,39 +965,38 @@
                 .map(n => ({ lat: n.latitude, lng: n.longitude }));
         }
 
-        // Returns true if the child position is inside the current safe zone
+        // Returns true if the child is within SAFE_RADIUS_M of at least one active checkpoint.
+        // Uses Leaflet's native distanceTo for accurate spherical distance computation.
         function isInsideSafeZone(lat, lng) {
             const coords = _safeZoneCoords();
             if (coords.length === 0) {
-                // No valid checkpoints — safe only if we have a real GPS center
                 if (!_centerFromGps) return true;
-                return distanceMeters(lat, lng, CENTER.lat, CENTER.lng) <= SAFE_RADIUS_M;
+                return L.latLng(lat, lng).distanceTo(L.latLng(CENTER.lat, CENTER.lng)) <= SAFE_RADIUS_M;
             }
-            if (coords.length === 1) {
-                return distanceMeters(lat, lng, coords[0].lat, coords[0].lng) <= SAFE_RADIUS_M;
-            }
-            return pointInPolygon(lat, lng, coords);
+            return coords.some(c => L.latLng(lat, lng).distanceTo(L.latLng(c.lat, c.lng)) <= SAFE_RADIUS_M);
         }
 
-        // Redraw the green safe zone on the child map based on active checkpoints
+        // Draws one green L.circle (200 m radius) per active checkpoint — no map recentering.
         function updateChildSafeZone() {
+            childSafeZoneLayers.forEach(l => map.removeLayer(l));
+            childSafeZoneLayers = [];
             if (childSafeZoneLayer) { map.removeLayer(childSafeZoneLayer); childSafeZoneLayer = null; }
+
             const coords = _safeZoneCoords();
             const GREEN  = '#22c55e';
             const style  = { color: GREEN, fillColor: GREEN, fillOpacity: 0.07, weight: 1.5, dashArray: '6 8' };
 
             if (coords.length === 0) {
-                // Draw default circle only around real GPS position
                 if (_centerFromGps) {
                     childSafeZoneLayer = L.circle([CENTER.lat, CENTER.lng], { radius: SAFE_RADIUS_M, ...style }).addTo(map);
                 }
-            } else if (coords.length === 1) {
-                childSafeZoneLayer = L.circle([coords[0].lat, coords[0].lng], { radius: SAFE_RADIUS_M, ...style }).addTo(map);
-                map.setView([coords[0].lat, coords[0].lng], 15);
-            } else {
-                childSafeZoneLayer = L.polygon(coords.map(c => [c.lat, c.lng]), style).addTo(map);
-                map.fitBounds(childSafeZoneLayer.getBounds(), { padding: [30, 30] });
+                return;
             }
+
+            coords.forEach(c => {
+                const circle = L.circle([c.lat, c.lng], { radius: SAFE_RADIUS_M, ...style }).addTo(map);
+                childSafeZoneLayers.push(circle);
+            });
         }
 
         const map = L.map('mini-map', { zoomControl: false, attributionControl: false })

@@ -497,7 +497,7 @@
         // Dynamic center — updated by GPS detection; no hardcoded location assumed
         let BASE_LAT = 0;
         let BASE_LNG = 0;
-        const SAFE_RADIUS = 500;
+        const SAFE_RADIUS = 200;
 
         /* ── Non-blocking banner ───────────────────────────────────────── */
         (function () {
@@ -598,7 +598,8 @@
 
         // Dynamic safe zone — list of {lat, lng} for each active checkpoint
         let checkpointCoords = [];
-        // Leaflet layer that represents the current dynamic safe zone
+        // One L.circle per checkpoint; safeZoneLayer / safeZoneCircle kept for legacy references
+        let checkpointCircleLayers = [];
         let safeZoneLayer = null;
 
         // Haversine distance between two lat/lng points (metres)
@@ -626,46 +627,50 @@
             return inside;
         }
 
-        // Returns true if the position is inside the current safe zone
+        // Returns true if the position is within SAFE_RADIUS of at least one active checkpoint.
         function isInsideSafeZone(lat, lng) {
             if (checkpointCoords.length === 0) {
-                // No checkpoints yet — only safe if we don't yet have a GPS fix either
                 if (BASE_LAT === 0 && BASE_LNG === 0) return true;
                 return distanceMeters(lat, lng, BASE_LAT, BASE_LNG) <= SAFE_RADIUS;
             }
-            if (checkpointCoords.length === 1) {
-                return distanceMeters(lat, lng, checkpointCoords[0].lat, checkpointCoords[0].lng) <= SAFE_RADIUS;
-            }
-            return pointInPolygon(lat, lng, checkpointCoords);
+            return checkpointCoords.some(c => distanceMeters(lat, lng, c.lat, c.lng) <= SAFE_RADIUS);
         }
 
-        // Redraws the safe zone layer based on current checkpointCoords
+        // Applies a color to all active zone circles (danger = red, safe = green).
+        function _setZoneStyle(color) {
+            const s = { color, fillColor: color };
+            if (checkpointCircleLayers.length > 0) {
+                checkpointCircleLayers.forEach(c => c.setStyle(s));
+            } else if (safeZoneCircle) {
+                safeZoneCircle.setStyle(s);
+            }
+        }
+
+        // Redraws one L.circle (200 m radius) per checkpoint — no recentering, no polygon.
         function updateSafeZone() {
             if (!parentMap) return;
+            checkpointCircleLayers.forEach(c => parentMap.removeLayer(c));
+            checkpointCircleLayers = [];
             if (safeZoneLayer) { parentMap.removeLayer(safeZoneLayer); safeZoneLayer = null; }
-            if (safeZoneCircle) { parentMap.removeLayer(safeZoneCircle); safeZoneCircle = null; }
+            safeZoneCircle = null;
 
             const GREEN = '#22c55e';
             const opts  = { color: GREEN, fillColor: GREEN, fillOpacity: 0.08, weight: 2, dashArray: '8 6' };
 
             if (checkpointCoords.length === 0) {
-                // Draw default circle only if we have a real GPS fix
                 if (BASE_LAT !== 0 && BASE_LNG !== 0) {
-                    safeZoneLayer = L.circle([BASE_LAT, BASE_LNG], { radius: SAFE_RADIUS, ...opts }).addTo(parentMap);
+                    safeZoneLayer  = L.circle([BASE_LAT, BASE_LNG], { radius: SAFE_RADIUS, ...opts }).addTo(parentMap);
+                    safeZoneCircle = safeZoneLayer;
                 }
-            } else if (checkpointCoords.length === 1) {
-                safeZoneLayer = L.circle(
-                    [checkpointCoords[0].lat, checkpointCoords[0].lng],
-                    { radius: SAFE_RADIUS, ...opts }
-                ).addTo(parentMap);
-                parentMap.setView([checkpointCoords[0].lat, checkpointCoords[0].lng], 15);
-            } else {
-                const latlngs = checkpointCoords.map(c => [c.lat, c.lng]);
-                safeZoneLayer = L.polygon(latlngs, opts).addTo(parentMap);
-                parentMap.fitBounds(safeZoneLayer.getBounds(), { padding: [40, 40] });
+                return;
             }
-            // keep the legacy reference alive so showDangerAlert / resetDangerAlert still work
-            safeZoneCircle = safeZoneLayer;
+
+            checkpointCoords.forEach(c => {
+                const circle = L.circle([c.lat, c.lng], { radius: SAFE_RADIUS, ...opts }).addTo(parentMap);
+                checkpointCircleLayers.push(circle);
+            });
+            safeZoneCircle = checkpointCircleLayers[0] || null;
+            safeZoneLayer  = safeZoneCircle;
         }
 
         // Load existing checkpoints from the backend and initialise checkpointCoords
@@ -902,7 +907,7 @@
                     document.getElementById('danger-overlay').classList.remove('visible');
                     document.getElementById('hud-alert').style.display = 'none';
                     document.getElementById('hud-alert').classList.remove('danger');
-                    if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
+                    _setZoneStyle('#22c55e');
                     _setPulse(false);
                     _lastDangerState = 'safe';
                     showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
@@ -916,7 +921,7 @@
             document.getElementById('danger-overlay').classList.add('visible');
             document.getElementById('hud-alert').style.display = 'block';
             document.getElementById('hud-alert').classList.add('danger');
-            if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444' });
+            _setZoneStyle('#ef4444');
             _setPulse(true);
 
             // Show banner only once per danger event (not on every poll tick)
@@ -948,7 +953,7 @@
             document.getElementById('danger-overlay').classList.remove('visible');
             document.getElementById('hud-alert').style.display = 'none';
             document.getElementById('hud-alert').classList.remove('danger');
-            if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
+            _setZoneStyle('#22c55e');
             _setPulse(false);
             _lastDangerState = 'safe';
             showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
@@ -974,7 +979,7 @@
                             document.getElementById('danger-overlay').classList.remove('visible');
                             document.getElementById('hud-alert').style.display = 'none';
                             document.getElementById('hud-alert').classList.remove('danger');
-                            if (safeZoneCircle) safeZoneCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e' });
+                            _setZoneStyle('#22c55e');
                             _setPulse(false);
                             showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
                         }
