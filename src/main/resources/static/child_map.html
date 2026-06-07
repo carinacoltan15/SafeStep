@@ -845,8 +845,8 @@
     <!-- Alarm vignette: red border pulse on screen edges, never blocks content -->
     <div id="alarm-vignette" aria-hidden="true"></div>
 
-    <!-- Pairing overlay — content rendered dynamically by JS, no static step HTML -->
-    <div id="pairing-overlay" class="show">
+    <!-- Pairing overlay — starts HIDDEN; JS adds .show only after step-1 content is injected -->
+    <div id="pairing-overlay">
         <div class="pairing-card">
             <div id="wizard-container"></div>
         </div>
@@ -1068,22 +1068,24 @@
 
         /* ── Step 1: name ───────────────────────────────────────────────── */
         function showStep1() {
+            // Content is injected BEFORE overlay becomes visible — prevents any wrong-content flash
             document.getElementById('wizard-container').innerHTML =
                 '<div class="pairing-title">What is your name?</div>' +
                 '<div class="pairing-sub">Tell us who you are before the mission begins.</div>' +
                 '<input type="text" id="kid-name-input" class="name-input-bubble"' +
                 '       placeholder="Your name..." autocomplete="nickname"' +
-                '       oninput="onNameInput(this)">' +
+                '       oninput="onNameInput(this)" autocorrect="off" autocapitalize="words">' +
                 '<div class="pairing-actions">' +
                 '  <button id="btn-step1-next" class="btn-start" type="button"' +
                 '          onclick="showStep2()" disabled>NEXT</button>' +
                 '</div>';
-            _resetWizardAnimation();
-            // Restore name if already set
+            // Restore name only when coming back from step-3 (not on fresh init where kidName='')
             if (kidName) {
                 const inp = document.getElementById('kid-name-input');
                 if (inp) { inp.value = kidName; onNameInput(inp); }
             }
+            document.getElementById('pairing-overlay').classList.add('show');
+            _resetWizardAnimation();
         }
 
         function onNameInput(el) {
@@ -1094,9 +1096,13 @@
 
         /* ── Step 2: avatar selection ───────────────────────────────────── */
         function showStep2() {
+            // Guard: can only advance if name-input exists (step-1 is currently rendered)
+            // OR if kidName is already set (coming back from step-3).
             const inp = document.getElementById('kid-name-input');
             if (inp) kidName = inp.value.trim();
             if ((kidName || '').length < 2) return;
+            // Ensure overlay is visible (covers the case where user navigates back)
+            document.getElementById('pairing-overlay').classList.add('show');
             document.getElementById('hud-name').textContent = kidName;
 
             const currentXp = parseInt(localStorage.getItem('safestep_points') || '0', 10);
@@ -1188,15 +1194,20 @@
         }
 
         /* ── Initialise or restore session ──────────────────────────────── */
+        // Overlay starts hidden in HTML (no .show class).
+        // showStep1() is the ONLY function that adds .show to overlay.
+        // showStep2/3 can ONLY run after step-1 content is already in DOM.
+
         const storedCode = getStoredPairingCode();
         const hasStoredSession = Boolean(kidName && storedCode && storedCode.length === 6);
 
         if (hasStoredSession) {
+            // Valid full session: leave overlay hidden (already hidden by default), show map.
             isPaired = true;
             localStorage.setItem('is_paired', 'true');
-            document.getElementById('pairing-overlay').classList.remove('show');
+            // overlay already has no .show class — nothing needed
         } else {
-            // Clear any stale partial data; preserve accumulated XP points
+            // Clear stale partial data; preserve accumulated XP points.
             const savedPoints = localStorage.getItem('safestep_points') || '0';
             localStorage.clear();
             sessionStorage.clear();
@@ -1206,7 +1217,8 @@
             kidAvatar = '';
             document.getElementById('hud-name').textContent   = 'Explorer';
             document.getElementById('hud-avatar').textContent = '';
-            showStep1();   // render step 1 — the only content in wizard-container
+            // showStep1 injects HTML then adds .show — overlay is visible only after content is ready
+            showStep1();
         }
 
         async function startMission() {
