@@ -502,11 +502,14 @@
         }
 
         /* ─── Wizard structure ─── */
-        .wizard-step { display: none; width: 100%; }
-        .wizard-step.active {
-            display: flex;
+        /* display is managed exclusively via JS style.display to avoid specificity conflicts */
+        .wizard-step {
+            display: none;
+            width: 100%;
             flex-direction: column;
             align-items: center;
+        }
+        .wizard-step.active {
             animation: stepIn 0.34s cubic-bezier(0.22,1,0.36,1) both;
         }
         @keyframes stepIn {
@@ -1020,11 +1023,26 @@
             { emoji: '🦅',   label: 'Sky Eagle',        xp: 500 },
         ];
 
-        /* ─── Wizard navigation ───────────────────────────────────────────── */
+        /* ─── Wizard navigation — display managed via inline style (highest specificity) ─── */
         function goToStep(n) {
-            document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
-            const el = document.getElementById('step-' + n);
-            if (el) el.classList.add('active');
+            [1, 2, 3].forEach(i => {
+                const el = document.getElementById('step-' + i);
+                if (!el) return;
+                if (i === n) {
+                    el.style.display = 'flex';
+                    el.classList.remove('active');
+                    void el.offsetWidth;          // force reflow to retrigger animation
+                    el.classList.add('active');
+                } else {
+                    el.style.display = 'none';
+                    el.classList.remove('active');
+                }
+            });
+        }
+
+        // Enforces the correct initial state: only step-1 visible, rest hidden.
+        function initWizard() {
+            goToStep(1);
         }
 
         function goToStep2() {
@@ -1096,13 +1114,29 @@
             rebuildChildMarker();
         }
 
-        // Hide overlay when a valid session already exists in localStorage
+        // Determine whether a complete paired session exists in localStorage
         const storedCode = getStoredPairingCode();
         const hasStoredSession = Boolean(kidName && storedCode && storedCode.length === 6);
+
         if (hasStoredSession) {
+            // Valid session found — skip wizard and go straight to map
             isPaired = true;
             localStorage.setItem('is_paired', 'true');
             document.getElementById('pairing-overlay').classList.remove('show');
+        } else {
+            // No complete session — clear stale data; keep accumulated XP
+            const savedPoints = localStorage.getItem('safestep_points') || '0';
+            localStorage.clear();
+            sessionStorage.clear();
+            localStorage.setItem('safestep_points', savedPoints);
+            localStorage.setItem('safestep_session_id', sessionId);
+            // Reset in-memory state so stale values don't persist
+            kidName   = '';
+            kidAvatar = '';
+            document.getElementById('hud-name').textContent   = 'Explorer';
+            document.getElementById('hud-avatar').textContent = '';
+            // Enforce strict initial state: step-1 visible, step-2 and step-3 hidden
+            initWizard();
         }
 
         // Step 1 — enable NEXT only when name has at least 2 characters
