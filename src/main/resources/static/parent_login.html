@@ -156,6 +156,8 @@
                 });
 
                 if (res.ok) {
+                    localStorage.clear();
+                    sessionStorage.clear();
                     sessionStorage.setItem('parent_email', email);
                     window.location.href = 'parent_dash.html';
                 } else {

@@ -346,15 +346,87 @@
             font-size: 1.3rem;
             box-shadow: 0 0 12px rgba(138,43,226,0.08);
         }
-        .avatar-pill:hover { transform: translateY(-2px); box-shadow: 0 0 18px rgba(0,255,255,0.14); }
+        .avatar-pill:not(.locked):hover { transform: translateY(-2px); box-shadow: 0 0 18px rgba(0,255,255,0.14); }
         .avatar-pill.active {
             border-color: rgba(0,255,255,0.45);
             box-shadow: 0 0 22px rgba(0,255,255,0.22);
             background: rgba(0,255,255,0.08);
         }
+        .avatar-pill.locked {
+            opacity: 0.38;
+            cursor: not-allowed;
+            filter: grayscale(0.5);
+        }
+        .xp-label {
+            display: block;
+            margin-top: 3px;
+            font-size: 0.50rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.48);
+            line-height: 1.2;
+        }
         .pairing-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .pairing-row input { margin-bottom: 0; }
         .pairing-actions { margin-top: 14px; display: grid; gap: 10px; }
+
+        /* ─── 3-step wizard ─── */
+        .wizard-step { display: none; }
+        .wizard-step.active {
+            display: block;
+            animation: stepIn 0.30s ease both;
+        }
+        @keyframes stepIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+        .avatar-bubble-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .avatar-bubble {
+            width: 90px; height: 90px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(138,43,226,0.35), rgba(0,255,255,0.18));
+            border: 3px solid rgba(0,255,255,0.42);
+            box-shadow: 0 0 32px rgba(0,255,255,0.22);
+            display: grid;
+            place-items: center;
+            font-size: 46px;
+            animation: avatarIn 0.45s cubic-bezier(0.22,1,0.36,1) both;
+        }
+        @keyframes avatarIn {
+            from { opacity: 0; transform: scale(0.55); }
+            to   { opacity: 1; transform: scale(1);    }
+        }
+        .name-display-bubble {
+            background: rgba(0,255,255,0.07);
+            border: 1px solid rgba(0,255,255,0.22);
+            border-radius: 14px;
+            padding: 10px 24px;
+            font-weight: 800;
+            font-size: 1rem;
+            color: #e0f2fe;
+            text-align: center;
+            min-width: 130px;
+            letter-spacing: 0.2px;
+        }
+        .btn-back {
+            width: 100%;
+            padding: 9px 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.10);
+            background: transparent;
+            color: rgba(255,255,255,0.45);
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: var(--transition);
+        }
+        .btn-back:hover { color: rgba(255,255,255,0.78); border-color: rgba(255,255,255,0.22); }
         .btn-start {
             width: 100%;
             padding: 14px 16px;
@@ -628,34 +700,41 @@
     <!-- Alarm vignette: red border pulse on screen edges, never blocks content -->
     <div id="alarm-vignette" aria-hidden="true"></div>
 
-    <!-- Pairing overlay (shown before radar starts) -->
+    <!-- Pairing overlay — 3-step wizard -->
     <div id="pairing-overlay" class="show">
         <div class="pairing-card">
-            <div class="pairing-title" data-i18n="mission.ready.title">Get Ready for Mission</div>
-            <div class="pairing-sub" data-i18n="mission.ready.sub">Choose your hero, enter your name and the pairing code from your parent. Once connected, the simulation starts and mission cards are unlocked.</div>
 
-            <div class="avatar-carousel" id="avatar-carousel">
-                <div class="avatar-pill" data-avatar="🧑‍🚀"   title="Astro Scout">🧑‍🚀</div>
-                <div class="avatar-pill" data-avatar="🤖"    title="SafeBot Prime">🤖</div>
-                <div class="avatar-pill" data-avatar="🕵️‍♂️"  title="Cyber Detective">🕵️‍♂️</div>
-                <div class="avatar-pill" data-avatar="🦸‍♂️"  title="Guardian Knight">🦸‍♂️</div>
-                <div class="avatar-pill" data-avatar="🦊"    title="Neon Fox">🦊</div>
-                <div class="avatar-pill" data-avatar="🐱"    title="Cyber Cat">🐱</div>
-                <div class="avatar-pill" data-avatar="🐉"    title="Techno Dragon">🐉</div>
-                <div class="avatar-pill" data-avatar="🥷"    title="Shadow Ninja">🥷</div>
-                <div class="avatar-pill" data-avatar="🐻"    title="Power Bear">🐻</div>
-                <div class="avatar-pill" data-avatar="🦅"    title="Sky Eagle">🦅</div>
-            </div>
-
-            <div class="pairing-row">
+            <!-- Step 1: Name -->
+            <div id="step-1" class="wizard-step active">
+                <div class="pairing-title">What is your name?</div>
+                <div class="pairing-sub">Tell us who you are before the mission begins.</div>
                 <input type="text" id="kid-name-input" placeholder="Your name" autocomplete="nickname">
-                <input type="text" id="pair-code-input" placeholder="Code (6 chars)" maxlength="6" style="text-transform: uppercase;" autocomplete="one-time-code">
+                <div class="pairing-actions">
+                    <button id="btn-step1-next" class="btn-start" type="button" onclick="goToStep2()" disabled>NEXT</button>
+                </div>
             </div>
 
-            <div class="pairing-actions">
-                <button id="btn-start-mission" class="btn-start" type="button" onclick="startMission()" data-i18n="mission.start.btn">START MISSION</button>
-                <button class="btn-secondary" type="button" onclick="demoFill()" data-i18n="mission.demo.btn">Demo Autofill</button>
+            <!-- Step 2: Avatar selection -->
+            <div id="step-2" class="wizard-step">
+                <div class="pairing-title" id="step2-greeting">Choose your avatar</div>
+                <div class="pairing-sub">Earn XP to unlock more heroes.</div>
+                <div class="avatar-carousel" id="avatar-carousel"></div>
             </div>
+
+            <!-- Step 3: Confirm + pairing code -->
+            <div id="step-3" class="wizard-step">
+                <div class="avatar-bubble-wrap">
+                    <div class="avatar-bubble" id="chosen-avatar-bubble"></div>
+                    <div class="name-display-bubble" id="name-display-bubble"></div>
+                </div>
+                <input type="text" id="pair-code-input" placeholder="Pairing code (6 characters)" maxlength="6" style="text-transform:uppercase;" autocomplete="one-time-code">
+                <div class="pairing-actions">
+                    <button id="btn-start-mission" class="btn-start" type="button" onclick="startMission()" disabled>START MISSION</button>
+                    <button class="btn-secondary" type="button" onclick="demoFill()">Demo Autofill</button>
+                </div>
+                <button class="btn-back" type="button" onclick="goToStep(2)">Change avatar</button>
+            </div>
+
         </div>
     </div>
 
@@ -824,70 +903,122 @@
         document.getElementById('hud-name').textContent    = kidName || 'Explorer';
         document.getElementById('session-tag').textContent = `Session: ${sessionId.slice(0, 14)}…`;
 
-        // Avatar carousel — pre-select from localStorage if available
-        function selectAvatar(emoji) {
+        /* ─── Avatar catalog with XP thresholds ─────────────────────────── */
+        const AVATAR_CATALOG = [
+            { emoji: '🧑‍🚀', label: 'Astro Scout',    xp: 0   },
+            { emoji: '🤖',   label: 'SafeBot Prime',   xp: 0   },
+            { emoji: '🦊',   label: 'Neon Fox',         xp: 0   },
+            { emoji: '🕵️‍♂️', label: 'Cyber Detective', xp: 50  },
+            { emoji: '🦸‍♂️', label: 'Guardian Knight', xp: 100 },
+            { emoji: '🐱',   label: 'Cyber Cat',        xp: 150 },
+            { emoji: '🐉',   label: 'Techno Dragon',    xp: 200 },
+            { emoji: '🥷',   label: 'Shadow Ninja',     xp: 300 },
+            { emoji: '🐻',   label: 'Power Bear',       xp: 400 },
+            { emoji: '🦅',   label: 'Sky Eagle',        xp: 500 },
+        ];
+
+        /* ─── Wizard navigation ───────────────────────────────────────────── */
+        function goToStep(n) {
+            document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+            const el = document.getElementById('step-' + n);
+            if (el) el.classList.add('active');
+        }
+
+        function goToStep2() {
+            const name = document.getElementById('kid-name-input').value.trim();
+            if (name.length < 2) return;
+            kidName = name;
+            document.getElementById('hud-name').textContent = kidName;
+            document.getElementById('step2-greeting').textContent = 'Choose your avatar, ' + kidName;
+            renderAvatarGrid();
+            goToStep(2);
+        }
+
+        function renderAvatarGrid() {
+            const currentXp = parseInt(localStorage.getItem('safestep_points') || '0', 10);
+            const container = document.getElementById('avatar-carousel');
+            container.innerHTML = '';
+            AVATAR_CATALOG.forEach(av => {
+                const locked = currentXp < av.xp;
+                const pill   = document.createElement('div');
+                pill.className = 'avatar-pill' + (locked ? ' locked' : '');
+                pill.title     = av.label;
+                if (locked) {
+                    pill.innerHTML = av.emoji + '<span class="xp-label">' + av.xp + ' XP</span>';
+                } else {
+                    pill.innerHTML = av.emoji;
+                    pill.addEventListener('click', () => selectAvatarAndAdvance(av.emoji));
+                }
+                container.appendChild(pill);
+            });
+        }
+
+        function selectAvatarAndAdvance(emoji) {
             kidAvatar = emoji;
             localStorage.setItem('kid_avatar', emoji);
-            document.getElementById('hud-avatar').textContent = emoji;
+            document.getElementById('hud-avatar').textContent          = emoji;
+            document.getElementById('chosen-avatar-bubble').textContent = emoji;
+            document.getElementById('name-display-bubble').textContent  = kidName;
+            document.getElementById('pair-code-input').value            = '';
+            const btnStart = document.getElementById('btn-start-mission');
+            btnStart.disabled = true;
+            btnStart.classList.remove('enabled');
+            goToStep(3);
             rebuildChildMarker();
         }
-        (function initCarousel() {
-            const stored = localStorage.getItem('kid_avatar') || '🧑‍🚀';
-            let found = false;
-            document.querySelectorAll('.avatar-pill').forEach(p => {
-                const match = p.dataset.avatar === stored;
-                p.classList.toggle('active', match);
-                if (match) found = true;
-            });
-            // fallback: activate first pill if no match
-            if (!found) {
-                const first = document.querySelector('.avatar-pill');
-                if (first) first.classList.add('active');
-            }
-        })();
-        document.querySelectorAll('.avatar-pill').forEach(p => {
-            p.addEventListener('click', () => {
-                document.querySelectorAll('.avatar-pill').forEach(x => x.classList.remove('active'));
-                p.classList.add('active');
-                selectAvatar(p.dataset.avatar);
-                validatePairingForm();
-            });
-        });
 
-        // Show/hide overlay based on stored session
+        // Hide overlay when a valid session already exists in localStorage
         const storedCode = getStoredPairingCode();
         const hasStoredSession = Boolean(kidName && storedCode && storedCode.length === 6);
         if (hasStoredSession) {
             isPaired = true;
             localStorage.setItem('is_paired', 'true');
-            document.getElementById('kid-name-input').value  = kidName;
-            document.getElementById('pair-code-input').value = storedCode.toUpperCase();
             document.getElementById('pairing-overlay').classList.remove('show');
-        } else {
-            document.getElementById('pairing-overlay').classList.add('show');
         }
+
+        // Step 1 — enable NEXT only when name has at least 2 characters
+        document.getElementById('kid-name-input').addEventListener('input', () => {
+            const ok  = document.getElementById('kid-name-input').value.trim().length >= 2;
+            const btn = document.getElementById('btn-step1-next');
+            btn.disabled = !ok;
+            btn.classList.toggle('enabled', ok);
+        });
+
+        // Step 3 — enable START MISSION only when code is 6 alphanumeric characters
+        document.getElementById('pair-code-input').addEventListener('input', e => {
+            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+            const ok  = e.target.value.length === 6;
+            const btn = document.getElementById('btn-start-mission');
+            btn.disabled = !ok;
+            btn.classList.toggle('enabled', ok);
+        });
 
         function demoFill() {
-            const savedKid = localStorage.getItem('kid_name') || 'Alex';
-            document.getElementById('kid-name-input').value  = savedKid;
-            document.getElementById('pair-code-input').value = (getStoredPairingCode() || '').toUpperCase();
-            validatePairingForm();
+            const savedName = localStorage.getItem('kid_name') || 'Alex';
+            const savedCode = (getStoredPairingCode() || '').toUpperCase();
+            // Fill name field (step 1)
+            document.getElementById('kid-name-input').value = savedName;
+            kidName = savedName;
+            document.getElementById('hud-name').textContent = savedName;
+            // Select first free avatar
+            const av  = AVATAR_CATALOG.find(a => a.xp === 0) || AVATAR_CATALOG[0];
+            kidAvatar = av.emoji;
+            localStorage.setItem('kid_avatar', av.emoji);
+            document.getElementById('hud-avatar').textContent          = av.emoji;
+            document.getElementById('chosen-avatar-bubble').textContent = av.emoji;
+            document.getElementById('name-display-bubble').textContent  = savedName;
+            // Fill code field and jump to step 3
+            document.getElementById('pair-code-input').value = savedCode;
+            goToStep(3);
+            const btnStart = document.getElementById('btn-start-mission');
+            const codeOk   = savedCode.length === 6;
+            btnStart.disabled = !codeOk;
+            btnStart.classList.toggle('enabled', codeOk);
+            const btnNext  = document.getElementById('btn-step1-next');
+            btnNext.disabled = false;
+            btnNext.classList.add('enabled');
+            rebuildChildMarker();
         }
-
-        function validatePairingForm() {
-            const name = document.getElementById('kid-name-input').value.trim();
-            const code = document.getElementById('pair-code-input').value.trim().toUpperCase();
-            const ok   = name.length >= 2 && code.length === 6;
-            const btn  = document.getElementById('btn-start-mission');
-            btn.classList.toggle('enabled', ok);
-            btn.disabled = !ok;
-        }
-        document.getElementById('kid-name-input').addEventListener('input', validatePairingForm);
-        document.getElementById('pair-code-input').addEventListener('input', (e) => {
-            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-            validatePairingForm();
-        });
-        validatePairingForm();
 
         async function startMission() {
             const name = document.getElementById('kid-name-input').value.trim();
@@ -1099,7 +1230,7 @@
         }
 
         function logoutChild() {
-            try { localStorage.clear(); } finally { location.reload(); }
+            try { localStorage.clear(); sessionStorage.clear(); } finally { location.reload(); }
         }
 
         function setRadarState(outside) {

@@ -120,6 +120,8 @@
                 });
 
                 if (response.ok) {
+                    localStorage.clear();
+                    sessionStorage.clear();
                     await Swal.fire({
                         title: 'Account Created',
                         text: 'Your account is ready. You can now sign in.',
