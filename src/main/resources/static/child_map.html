@@ -301,80 +301,160 @@
             color: #93c5fd; font-size: 0.68rem; font-weight: 700;
         }
 
-        /* ─── Pairing overlay — full-screen 3-step wizard ─── */
-        #pairing-overlay {
-            display: none !important;
+        /* ─── Setup container — full-screen, 3-step, izolat complet ─── */
+        #setup-container {
             position: fixed;
             inset: 0;
-            background: rgba(7, 7, 18, 0.97);
-            z-index: 9999;
-            padding: max(32px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
-            align-items: center;
-            justify-content: center;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        #pairing-overlay.show { display: flex !important; }
-        #pairing-overlay.fade-out { animation: fadeOut 0.45s ease forwards; }
-        @keyframes fadeOut { to { opacity: 0; visibility: hidden; } }
-
-        .pairing-card {
-            width: min(480px, 100%);
+            background: #0b0c10;
+            z-index: 99999;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 0;
-        }
-        .pairing-title {
-            font-weight: 900;
-            font-size: clamp(1.65rem, 6vw, 2.2rem);
-            color: #fff;
-            text-align: center;
-            margin-bottom: 10px;
-            letter-spacing: -0.02em;
-            line-height: 1.15;
-        }
-        .pairing-sub {
-            color: rgba(255,255,255,0.52);
-            font-size: 1rem;
-            line-height: 1.55;
-            text-align: center;
-            margin-bottom: 28px;
-            max-width: 340px;
+            justify-content: flex-start;
+            padding: max(52px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom));
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* ─── Step 1: name input ─── */
-        .name-input-bubble {
+        /* Fiecare step este un bloc flex independent */
+        #step-name,
+        #step-avatar,
+        #step-connect {
             width: 100%;
-            max-width: 380px;
-            padding: 18px 24px;
-            font-size: 1.25rem;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: stepFadeIn 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes stepFadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+
+        .setup-eyebrow {
+            font-size: 0.78rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: rgba(0, 255, 255, 0.48);
+            margin-bottom: 38px;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.20);
+        }
+        .setup-title {
+            font-size: clamp(1.85rem, 7vw, 2.5rem);
+            font-weight: 900;
+            color: #fff;
+            text-align: center;
+            margin: 0 0 10px;
+            letter-spacing: -0.02em;
+            line-height: 1.12;
+        }
+        .setup-sub {
+            color: rgba(255, 255, 255, 0.44);
+            font-size: 0.98rem;
+            text-align: center;
+            margin: 0 0 30px;
+            max-width: 340px;
+            line-height: 1.55;
+        }
+
+        /* ── Input nume (step 1) ── */
+        .setup-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px 26px;
+            font-size: 1.28rem;
             font-weight: 700;
             text-align: center;
-            background: rgba(0,255,255,0.06);
-            border: 2px solid rgba(0,255,255,0.25);
-            border-radius: 22px;
+            background: rgba(0, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 255, 0.20);
+            border-radius: 24px;
             color: #fff;
             outline: none;
-            margin-bottom: 22px;
+            margin-bottom: 24px;
             box-sizing: border-box;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
             font-family: 'Outfit', sans-serif;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        .name-input-bubble::placeholder { color: rgba(255,255,255,0.28); font-weight: 500; font-size: 1rem; }
-        .name-input-bubble:focus {
-            border-color: rgba(0,255,255,0.62);
-            box-shadow: 0 0 32px rgba(0,255,255,0.18);
+        .setup-input::placeholder { color: rgba(255,255,255,0.24); font-weight: 500; font-size: 1rem; }
+        .setup-input:focus {
+            border-color: rgba(0, 255, 255, 0.58);
+            box-shadow: 0 0 36px rgba(0, 255, 255, 0.15);
         }
 
-        /* ─── Step 2: large avatar grid ─── */
+        /* ── Buton principal ── */
+        .setup-btn {
+            width: 100%;
+            max-width: 400px;
+            padding: 18px;
+            border-radius: 18px;
+            border: none;
+            font-weight: 900;
+            font-size: 1.05rem;
+            letter-spacing: 1.8px;
+            color: #001014;
+            background: linear-gradient(90deg, #00ffff, #00ff7f);
+            box-shadow: 0 0 18px rgba(0, 255, 255, 0.20);
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.2s;
+            opacity: 0.35;
+        }
+        .setup-btn:disabled { pointer-events: none; }
+        .setup-btn:not([disabled]) { opacity: 1; }
+        .setup-btn:not([disabled]):hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 34px rgba(0, 255, 255, 0.38);
+        }
+
+        .setup-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            max-width: 400px;
+            margin-top: 6px;
+        }
+        .setup-btn-secondary {
+            width: 100%;
+            padding: 14px;
+            border-radius: 16px;
+            border: 1px solid rgba(138, 43, 226, 0.32);
+            background: rgba(138, 43, 226, 0.07);
+            color: rgba(168, 85, 247, 0.82);
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .setup-btn-secondary:hover {
+            border-color: rgba(138, 43, 226, 0.58);
+            box-shadow: 0 0 18px rgba(138, 43, 226, 0.16);
+        }
+        .setup-btn-back {
+            width: 100%;
+            max-width: 400px;
+            padding: 13px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background: transparent;
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 0.80rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .setup-btn-back:hover { color: rgba(255,255,255,0.72); border-color: rgba(255,255,255,0.18); }
+
+        /* ── Grilă avatare (step 2) ── */
         .avatar-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 14px;
             width: 100%;
             max-width: 420px;
-            margin-bottom: 20px;
+            margin-bottom: 22px;
         }
         @media (min-width: 440px) {
             .avatar-grid { grid-template-columns: repeat(3, 1fr); }
@@ -384,25 +464,17 @@
             border-radius: 20px;
             padding: 22px 10px 14px;
             text-align: center;
-            background: rgba(255,255,255,0.05);
-            border: 2.5px solid rgba(138,43,226,0.22);
+            background: rgba(255, 255, 255, 0.05);
+            border: 2.5px solid rgba(138, 43, 226, 0.22);
             cursor: pointer;
             transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
-        .avatar-card .av-emoji {
-            font-size: 3rem;
-            display: block;
-            line-height: 1.1;
-            margin-bottom: 8px;
-        }
+        .avatar-card .av-emoji { font-size: 3rem; display: block; line-height: 1.1; margin-bottom: 8px; }
         .avatar-card .av-label {
-            font-size: 0.74rem;
-            font-weight: 800;
-            color: rgba(255,255,255,0.62);
-            letter-spacing: 0.3px;
-            display: block;
+            font-size: 0.72rem; font-weight: 800;
+            color: rgba(255,255,255,0.60); letter-spacing: 0.3px; display: block;
         }
         .avatar-card:not(.locked):hover {
             transform: translateY(-4px);
@@ -412,122 +484,65 @@
         .avatar-card.selected {
             border-color: #22c55e;
             box-shadow: 0 0 0 2px #22c55e, 0 0 44px rgba(34,197,94,0.52);
-            background: rgba(34,197,94,0.10);
+            background: rgba(34,197,94,0.08);
             transform: translateY(-3px);
         }
         .avatar-card.locked {
-            opacity: 0.33;
+            opacity: 0.28;
             cursor: not-allowed;
-            filter: grayscale(0.55);
-        }
-        .lock-overlay {
-            position: absolute;
-            inset: 0;
-            border-radius: 18px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-end;
-            padding-bottom: 10px;
             pointer-events: none;
+            filter: grayscale(0.65);
         }
-        .lock-text {
-            font-size: 0.56rem;
-            font-weight: 900;
-            letter-spacing: 1.5px;
-            color: rgba(255,255,255,0.48);
-            text-transform: uppercase;
-        }
-        .lock-xp {
-            font-size: 0.62rem;
-            font-weight: 800;
-            color: rgba(253,211,77,0.82);
-            margin-top: 2px;
+        .av-lock-badge {
+            margin-top: 6px; font-size: 0.58rem; font-weight: 900;
+            letter-spacing: 1px; color: rgba(253,211,77,0.72);
+            text-transform: uppercase; display: block;
         }
 
-        /* ─── Step 3: confirm screen ─── */
-        .chosen-avatar-large {
-            width: 128px; height: 128px;
+        /* ── Step 3: Confirmare + cod ── */
+        .chosen-avatar-bubble {
+            width: 148px; height: 148px;
             border-radius: 50%;
-            background: linear-gradient(135deg, rgba(138,43,226,0.42), rgba(0,255,255,0.24));
+            background: linear-gradient(135deg, rgba(138,43,226,0.45), rgba(0,255,255,0.25));
             border: 4px solid rgba(0,255,255,0.55);
-            box-shadow: 0 0 0 8px rgba(0,255,255,0.08), 0 0 60px rgba(0,255,255,0.28);
-            display: grid;
-            place-items: center;
-            font-size: 62px;
-            margin-bottom: 20px;
-            animation: avatarIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
+            box-shadow: 0 0 0 10px rgba(0,255,255,0.07), 0 0 72px rgba(0,255,255,0.25);
+            display: grid; place-items: center;
+            font-size: 72px;
+            margin-bottom: 24px;
+            animation: bubbleIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
         }
-        @keyframes avatarIn {
-            from { opacity: 0; transform: scale(0.5); }
-            to   { opacity: 1; transform: scale(1);   }
+        @keyframes bubbleIn {
+            from { opacity: 0; transform: scale(0.45); }
+            to   { opacity: 1; transform: scale(1);    }
         }
-        .info-bubble {
-            width: 100%;
-            max-width: 360px;
-            padding: 16px 24px;
-            border-radius: 20px;
-            font-size: 1.1rem;
-            font-weight: 800;
+        .connect-name-bubble {
+            width: 100%; max-width: 400px;
+            padding: 16px 26px; border-radius: 20px;
+            background: rgba(0,255,255,0.06);
+            border: 2px solid rgba(0,255,255,0.24);
+            color: #e0f2fe; font-size: 1.15rem; font-weight: 800;
+            text-align: center; margin-bottom: 14px; box-sizing: border-box;
+        }
+        .connect-code-input {
+            width: 100%; max-width: 400px;
+            padding: 18px 24px; border-radius: 20px;
+            font-size: 1.35rem; font-weight: 800; letter-spacing: 6px;
             text-align: center;
-            margin-bottom: 14px;
-            letter-spacing: 0.2px;
-            box-sizing: border-box;
-        }
-        .info-bubble.name-bubble {
-            background: rgba(0,255,255,0.07);
-            border: 2px solid rgba(0,255,255,0.28);
-            color: #e0f2fe;
-            display: block;
-        }
-        .info-bubble.code-bubble {
             background: rgba(255,255,255,0.04);
-            border: 2px solid rgba(168,85,247,0.38);
-            color: #fff;
-            font-size: 1.3rem;
-            letter-spacing: 5px;
-            outline: none;
+            border: 2px solid rgba(168,85,247,0.35);
+            color: #fff; outline: none;
             font-family: 'Outfit', sans-serif;
+            margin-bottom: 20px; box-sizing: border-box;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        .info-bubble.code-bubble::placeholder {
-            color: rgba(255,255,255,0.22);
-            letter-spacing: 2px;
-            font-size: 0.88rem;
-            font-weight: 500;
+        .connect-code-input::placeholder {
+            color: rgba(255,255,255,0.20); letter-spacing: 2px;
+            font-size: 0.88rem; font-weight: 500;
         }
-        .info-bubble.code-bubble:focus {
-            border-color: rgba(168,85,247,0.68);
-            box-shadow: 0 0 30px rgba(138,43,226,0.24);
+        .connect-code-input:focus {
+            border-color: rgba(168,85,247,0.65);
+            box-shadow: 0 0 30px rgba(138,43,226,0.22);
         }
-
-        /* ─── Wizard container (dynamic — no static step HTML in DOM) ─── */
-        #wizard-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            animation: stepIn 0.34s cubic-bezier(0.22,1,0.36,1) both;
-        }
-        @keyframes stepIn {
-            from { opacity: 0; transform: translateY(16px); }
-            to   { opacity: 1; transform: translateY(0);    }
-        }
-        .pairing-actions { margin-top: 4px; display: grid; gap: 10px; width: 100%; max-width: 380px; }
-        .btn-back {
-            width: 100%; max-width: 380px;
-            padding: 12px;
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.10);
-            background: transparent;
-            color: rgba(255,255,255,0.42);
-            font-size: 0.80rem;
-            font-weight: 700;
-            cursor: pointer;
-            margin-top: 8px;
-            transition: var(--transition);
-        }
-        .btn-back:hover { color: rgba(255,255,255,0.80); border-color: rgba(255,255,255,0.22); }
 
         /* ─── Child stats panel ─── */
         #child-stats-panel {
@@ -845,11 +860,50 @@
     <!-- Alarm vignette: red border pulse on screen edges, never blocks content -->
     <div id="alarm-vignette" aria-hidden="true"></div>
 
-    <!-- Pairing overlay — starts HIDDEN; JS adds .show only after step-1 content is injected -->
-    <div id="pairing-overlay">
-        <div class="pairing-card">
-            <div id="wizard-container"></div>
+    <!-- Setup container — 3 step-uri statice izolate; doar #step-name e vizibil la pornire -->
+    <div id="setup-container">
+
+        <!-- Step 1: Nume — vizibil la pornire -->
+        <div id="step-name">
+            <div class="setup-eyebrow">SafeStep</div>
+            <h1 class="setup-title">What's your name?</h1>
+            <p class="setup-sub">Tell us who you are before the mission begins.</p>
+            <input type="text" id="kid-name-input" class="setup-input"
+                   placeholder="Your name..." autocomplete="nickname"
+                   oninput="onSetupNameInput(this)" autocorrect="off" autocapitalize="words"
+                   maxlength="32">
+            <button id="btn-name-next" class="setup-btn" type="button"
+                    onclick="goToAvatarStep()" disabled>NEXT</button>
         </div>
+
+        <!-- Step 2: Avatar — ascuns; apare doar după confirmarea numelui -->
+        <div id="step-avatar" style="display:none">
+            <h1 class="setup-title" id="avatar-step-title">Choose your avatar</h1>
+            <p class="setup-sub">Earn XP to unlock more heroes.</p>
+            <div class="avatar-grid" id="avatar-grid"></div>
+            <div class="setup-actions">
+                <button id="btn-avatar-next" class="setup-btn" type="button"
+                        onclick="goToConnectStep()" disabled>NEXT</button>
+                <button class="setup-btn-back" type="button" onclick="goToNameStep()">Back</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Conectare — ascuns; apare după alegerea avatarului -->
+        <div id="step-connect" style="display:none">
+            <div class="chosen-avatar-bubble" id="chosen-avatar-bubble"></div>
+            <div class="connect-name-bubble" id="connect-name-bubble"></div>
+            <input type="text" id="pair-code-input" class="connect-code-input"
+                   placeholder="PAIRING CODE" maxlength="6"
+                   style="text-transform:uppercase;" autocomplete="one-time-code"
+                   oninput="onPairCodeInput(this)">
+            <div class="setup-actions">
+                <button id="btn-start-mission" class="setup-btn" type="button"
+                        onclick="startMission()" disabled>START MISSION</button>
+                <button class="setup-btn-secondary" type="button" onclick="demoFill()">Demo Autofill</button>
+            </div>
+            <button class="setup-btn-back" type="button" onclick="goToAvatarStep()">Change avatar</button>
+        </div>
+
     </div>
 
     <!-- Mission Accomplished overlay (child view) -->
@@ -942,15 +996,6 @@
     <script src="js/api-config.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        /* ── Hard-reset overlay on every load — prevents bfcache DOM restore
-               from showing stale avatar content before JS runs ────────────── */
-        (function () {
-            var o = document.getElementById('pairing-overlay');
-            if (o) o.classList.remove('show');
-            var w = document.getElementById('wizard-container');
-            if (w) w.innerHTML = '';
-        })();
-
         /* ── Non-blocking banner ───────────────────────────────────────── */
         (function () {
             const b = document.getElementById('notification-banner');
@@ -1063,172 +1108,131 @@
         ];
 
         /* ══════════════════════════════════════════════════════════════════
-           WIZARD — each step replaces wizard-container.innerHTML entirely.
-           No static step HTML exists in DOM; no hidden/shown state confusion.
+           SETUP FLOW — 3 div-uri statice în DOM, izolate complet.
+           Nicio injectare dinamică de HTML. Nicio stare vizuală ambiguă.
            ══════════════════════════════════════════════════════════════════ */
 
-        function _resetWizardAnimation() {
-            const c = document.getElementById('wizard-container');
-            if (!c) return;
-            c.style.animation = 'none';
-            void c.offsetWidth;
-            c.style.animation = '';
-        }
-
-        /* ── Step 1: name ───────────────────────────────────────────────── */
-        function showStep1() {
-            // Content is injected BEFORE overlay becomes visible — prevents any wrong-content flash
-            document.getElementById('wizard-container').innerHTML =
-                '<div class="pairing-title">What is your name?</div>' +
-                '<div class="pairing-sub">Tell us who you are before the mission begins.</div>' +
-                '<input type="text" id="kid-name-input" class="name-input-bubble"' +
-                '       placeholder="Your name..." autocomplete="nickname"' +
-                '       oninput="onNameInput(this)" autocorrect="off" autocapitalize="words">' +
-                '<div class="pairing-actions">' +
-                '  <button id="btn-step1-next" class="btn-start" type="button"' +
-                '          onclick="showStep2()" disabled>NEXT</button>' +
-                '</div>';
-            // Restore name only when coming back from step-3 (not on fresh init where kidName='')
-            if (kidName) {
-                const inp = document.getElementById('kid-name-input');
-                if (inp) { inp.value = kidName; onNameInput(inp); }
+        /* ── Intern: comută step-ul vizibil ─────────────────────────────── */
+        function _showSetupStep(stepId) {
+            ['step-name', 'step-avatar', 'step-connect'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.setProperty('display', 'none', 'important');
+            });
+            const target = document.getElementById(stepId);
+            if (target) {
+                target.style.setProperty('display', 'flex', 'important');
+                // Re-declanșează animația de intrare
+                target.style.animation = 'none';
+                void target.offsetWidth;
+                target.style.animation = '';
             }
-            document.getElementById('pairing-overlay').classList.add('show');
-            _resetWizardAnimation();
         }
 
-        function onNameInput(el) {
-            const ok  = el.value.trim().length >= 2;
-            const btn = document.getElementById('btn-step1-next');
-            if (btn) { btn.disabled = !ok; btn.classList.toggle('enabled', ok); }
+        /* ── Step 1: input pentru nume ──────────────────────────────────── */
+        function onSetupNameInput(el) {
+            const btn = document.getElementById('btn-name-next');
+            if (btn) btn.disabled = el.value.trim().length < 2;
         }
 
-        /* ── Step 2: avatar selection ───────────────────────────────────── */
-        function showStep2() {
-            // Guard: MUST be called from step-1 context — kid-name-input must exist in DOM.
-            // This prevents any external or accidental invocation from showing avatars.
+        function goToNameStep() {
+            _showSetupStep('step-name');
+        }
+
+        /* ── Step 1 → Step 2: validare nume, construire grilă avatare ───── */
+        function goToAvatarStep() {
             const inp = document.getElementById('kid-name-input');
             if (!inp) return;
-            kidName = inp.value.trim();
-            if (kidName.length < 2) return;
-            // Overlay is already showing (we're inside step 1); keep it visible.
-            document.getElementById('pairing-overlay').classList.add('show');
+            const name = inp.value.trim();
+            if (name.length < 2) return;
+
+            kidName = name;
             document.getElementById('hud-name').textContent = kidName;
 
+            const title = document.getElementById('avatar-step-title');
+            if (title) title.textContent = 'Choose your avatar, ' + kidName;
+
+            _buildAvatarGrid();
+            _showSetupStep('step-avatar');
+        }
+
+        function _buildAvatarGrid() {
+            const grid = document.getElementById('avatar-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
             const currentXp = parseInt(localStorage.getItem('safestep_points') || '0', 10);
-            let cardsHtml = '';
+
             AVATAR_CATALOG.forEach(av => {
                 const locked = currentXp < av.xp;
-                if (locked) {
-                    cardsHtml +=
-                        '<div class="avatar-card locked" title="' + av.label + '">' +
-                            '<span class="av-emoji">' + av.emoji + '</span>' +
-                            '<span class="av-label">' + av.label + '</span>' +
-                            '<div class="lock-overlay">' +
-                                '<span class="lock-text">LOCKED</span>' +
-                                '<span class="lock-xp">Necesita ' + av.xp + ' XP</span>' +
-                            '</div>' +
-                        '</div>';
-                } else {
-                    cardsHtml +=
-                        '<div class="avatar-card" title="' + av.label + '"' +
-                            ' onclick="onAvatarCardClick(this,\'' + av.emoji.replace(/'/g, "\\'") + '\')">' +
-                            '<span class="av-emoji">' + av.emoji + '</span>' +
-                            '<span class="av-label">' + av.label + '</span>' +
-                        '</div>';
+                const card = document.createElement('div');
+                card.className = 'avatar-card' + (locked ? ' locked' : '');
+                card.title = av.label;
+                card.innerHTML =
+                    '<span class="av-emoji">' + av.emoji + '</span>' +
+                    '<span class="av-label">' + av.label + '</span>' +
+                    (locked ? '<span class="av-lock-badge">LOCKED · ' + av.xp + ' XP</span>' : '');
+                if (!locked) {
+                    card.addEventListener('click', () => _onAvatarSelect(card, av.emoji));
                 }
+                grid.appendChild(card);
             });
 
-            document.getElementById('wizard-container').innerHTML =
-                '<div class="pairing-title">Choose your avatar, ' + kidName + '</div>' +
-                '<div class="pairing-sub">Earn XP to unlock more heroes.</div>' +
-                '<div class="avatar-grid">' + cardsHtml + '</div>' +
-                '<div class="pairing-actions">' +
-                '  <button id="btn-step2-next" class="btn-start" type="button"' +
-                '          onclick="showStep3()" disabled>NEXT</button>' +
-                '</div>' +
-                '<button class="btn-back" type="button" onclick="showStep1()">Back</button>';
-            _resetWizardAnimation();
+            // Resetează selecția de avatar la fiecare intrare în step 2
+            kidAvatar = '';
+            const btn = document.getElementById('btn-avatar-next');
+            if (btn) btn.disabled = true;
         }
 
-        function onAvatarCardClick(cardEl, emoji) {
-            document.querySelectorAll('.avatar-card').forEach(c => c.classList.remove('selected'));
+        function _onAvatarSelect(cardEl, emoji) {
+            document.querySelectorAll('#avatar-grid .avatar-card').forEach(c => c.classList.remove('selected'));
             cardEl.classList.add('selected');
             kidAvatar = emoji;
-            localStorage.setItem('kid_avatar', emoji);
             document.getElementById('hud-avatar').textContent = emoji;
-            const btn = document.getElementById('btn-step2-next');
-            if (btn) { btn.disabled = false; btn.classList.add('enabled'); }
+            const btn = document.getElementById('btn-avatar-next');
+            if (btn) btn.disabled = false;
         }
 
-        /* ── Step 3: confirm + pairing code ────────────────────────────── */
-        function showStep3() {
+        /* ── Step 2 → Step 3: injectează avatarul și numele în ecranul de conectare ── */
+        function goToConnectStep() {
             if (!kidAvatar) return;
-            document.getElementById('wizard-container').innerHTML =
-                '<div class="chosen-avatar-large">' + kidAvatar + '</div>' +
-                '<div class="info-bubble name-bubble">' + kidName + '</div>' +
-                '<input type="text" id="pair-code-input" class="info-bubble code-bubble"' +
-                '       placeholder="PAIRING CODE" maxlength="6"' +
-                '       style="text-transform:uppercase;" autocomplete="one-time-code"' +
-                '       oninput="onCodeInput(this)">' +
-                '<div class="pairing-actions">' +
-                '  <button id="btn-start-mission" class="btn-start" type="button"' +
-                '          onclick="startMission()" disabled>START MISSION</button>' +
-                '  <button class="btn-secondary" type="button" onclick="demoFill()">Demo Autofill</button>' +
-                '</div>' +
-                '<button class="btn-back" type="button" onclick="showStep2()">Change avatar</button>';
-            _resetWizardAnimation();
+
+            const bubble = document.getElementById('chosen-avatar-bubble');
+            if (bubble) bubble.textContent = kidAvatar;
+            const nameBubble = document.getElementById('connect-name-bubble');
+            if (nameBubble) nameBubble.textContent = kidName;
+
+            const codeEl = document.getElementById('pair-code-input');
+            if (codeEl) codeEl.value = '';
+            const startBtn = document.getElementById('btn-start-mission');
+            if (startBtn) startBtn.disabled = true;
+
+            localStorage.setItem('kid_avatar', kidAvatar);
             rebuildChildMarker();
+            _showSetupStep('step-connect');
         }
 
-        function onCodeInput(el) {
+        /* ── Step 3: validare cod de conectare ──────────────────────────── */
+        function onPairCodeInput(el) {
             el.value = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-            const ok  = el.value.length === 6;
             const btn = document.getElementById('btn-start-mission');
-            if (btn) { btn.disabled = !ok; btn.classList.toggle('enabled', ok); }
+            if (btn) btn.disabled = el.value.length !== 6;
         }
 
         /* ── Demo autofill ──────────────────────────────────────────────── */
         function demoFill() {
-            const savedName = localStorage.getItem('kid_name') || 'Alex';
             const savedCode = (getStoredPairingCode() || '').toUpperCase();
-            kidName = savedName;
-            document.getElementById('hud-name').textContent = savedName;
-            const av = AVATAR_CATALOG.find(a => a.xp === 0) || AVATAR_CATALOG[0];
-            kidAvatar = av.emoji;
-            localStorage.setItem('kid_avatar', av.emoji);
-            document.getElementById('hud-avatar').textContent = av.emoji;
-            showStep3();
+            if (!kidAvatar) {
+                const av = AVATAR_CATALOG.find(a => a.xp === 0) || AVATAR_CATALOG[0];
+                kidAvatar = av.emoji;
+                document.getElementById('hud-avatar').textContent = av.emoji;
+                localStorage.setItem('kid_avatar', av.emoji);
+                rebuildChildMarker();
+            }
+            const bubble = document.getElementById('chosen-avatar-bubble');
+            if (bubble) bubble.textContent = kidAvatar;
+            const nameBubble = document.getElementById('connect-name-bubble');
+            if (nameBubble) nameBubble.textContent = kidName || 'Explorer';
             const codeEl = document.getElementById('pair-code-input');
-            if (codeEl && savedCode) { codeEl.value = savedCode; onCodeInput(codeEl); }
-        }
-
-        /* ── Initialise or restore session ──────────────────────────────── */
-        // Overlay starts hidden in HTML (no .show class).
-        // showStep1() is the ONLY function that adds .show to overlay.
-        // showStep2/3 can ONLY run after step-1 content is already in DOM.
-
-        const storedCode = getStoredPairingCode();
-        const hasStoredSession = Boolean(kidName && storedCode && storedCode.length === 6);
-
-        if (hasStoredSession) {
-            // Valid full session: leave overlay hidden (already hidden by default), show map.
-            isPaired = true;
-            localStorage.setItem('is_paired', 'true');
-            // overlay already has no .show class — nothing needed
-        } else {
-            // Clear stale partial data; preserve accumulated XP points.
-            const savedPoints = localStorage.getItem('safestep_points') || '0';
-            localStorage.clear();
-            sessionStorage.clear();
-            localStorage.setItem('safestep_points', savedPoints);
-            localStorage.setItem('safestep_session_id', sessionId);
-            kidName   = '';
-            kidAvatar = '';
-            document.getElementById('hud-name').textContent   = 'Explorer';
-            document.getElementById('hud-avatar').textContent = '';
-            // showStep1 injects HTML then adds .show — overlay is visible only after content is ready
-            showStep1();
+            if (codeEl && savedCode) { codeEl.value = savedCode; onPairCodeInput(codeEl); }
         }
 
         async function startMission() {
@@ -1257,9 +1261,12 @@
                     body: JSON.stringify({ latitude: childPos.lat, longitude: childPos.lng, avatar: kidAvatar, kidName, sessionId, missionActive })
                 });
 
-                const overlay = document.getElementById('pairing-overlay');
-                overlay.classList.add('fade-out');
-                setTimeout(() => overlay.classList.remove('show'), 460);
+                const setupEl = document.getElementById('setup-container');
+                if (setupEl) {
+                    setupEl.style.transition = 'opacity 0.42s ease';
+                    setupEl.style.opacity    = '0';
+                    setTimeout(() => { setupEl.style.display = 'none'; }, 450);
+                }
                 showChildStatsPanel();
                 greetChild();
             } catch (e) {
@@ -1938,7 +1945,21 @@
         }
 
         window.onload = () => {
-            // Detect real GPS first — re-centers map and sets CENTER before anything renders
+            // Start fresh: nicio sesiune salvată, nicio restabilire automată
+            localStorage.clear();
+            sessionStorage.clear();
+            totalPoints         = 0;
+            _totalPointsAllTime = 0;
+            _missionsCompleted  = 0;
+            kidName   = '';
+            kidAvatar = '';
+            document.getElementById('hud-name').textContent   = 'Explorer';
+            document.getElementById('hud-avatar').textContent = '';
+
+            // Forțează vizibilitatea exclusiv pe step-name
+            _showSetupStep('step-name');
+
+            // Detectează GPS real — re-centrează harta și setează CENTER înainte de orice
             initChildGPSCenter(() => {
                 updateProgressUI();
                 updateView();
@@ -1946,7 +1967,6 @@
                 setInterval(updateView, 5000);
                 simIntervalId = setInterval(simulateChildMovement, MOVE_INTERVAL_MS);
                 document.getElementById('label-sim').classList.add('active-label');
-                if (hasStoredSession) { missionStarted = true; greetChild(); }
             });
         };
     </script>
