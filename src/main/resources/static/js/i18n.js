@@ -19,9 +19,6 @@ const SS_LANG = {
         'portal.child.heading':   'Child Quest',
         'portal.child.btn':       'Select Avatar',
         'portal.footer':          'SAFE STEP \u00A0\u2022\u00A0 PREMIUM ECOSYSTEM',
-        'avatar.title':           'Choose Your Hero',
-        'avatar.sub':             'SELECT YOUR IDENTITY \u00B7 MISSION BEGINS',
-        'avatar.back':            '\u2715\u00A0\u00A0BACK',
         // ── parent_login.html ────────────────────────────────────
         'login.title':            'Parent Portal',
         'login.subtitle':         "Securely track your child\u2019s journey",

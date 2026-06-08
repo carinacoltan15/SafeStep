@@ -505,146 +505,7 @@
             .role-grid { grid-template-columns: 1fr; }
         }
 
-        /* ══════════════════════════════════════════════════════════════
-           AVATAR PICKER OVERLAY
-        ══════════════════════════════════════════════════════════════ */
-        #avatar-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 9000;
-            background: rgba(7, 7, 18, 0.90);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 24px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.4s ease;
-        }
-        #avatar-overlay.show {
-            opacity: 1;
-            pointer-events: all;
-        }
-        .avatar-overlay-title {
-            font-size: clamp(1.4rem, 4vw, 2rem);
-            font-weight: 900;
-            letter-spacing: 0.05em;
-            background: linear-gradient(90deg, #00ffff, #8a2be2);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            filter: drop-shadow(0 0 16px rgba(0, 220, 255, 0.45));
-            text-align: center;
-        }
-        .avatar-overlay-sub {
-            font-size: 0.80rem;
-            color: rgba(255,255,255,0.38);
-            letter-spacing: 2px;
-            margin-top: -16px;
-            text-align: center;
-            font-weight: 600;
-        }
-        .avatar-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 14px;
-            padding: 0 20px;
-            max-width: 660px;
-        }
-        @media (max-width: 640px) {
-            .avatar-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 12px; }
-        }
-        .avatar-card {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            padding: 16px 12px 12px;
-            border-radius: 18px;
-            background: rgba(18, 18, 36, 0.88);
-            border: 1.5px solid rgba(138, 43, 226, 0.38);
-            box-shadow: 0 0 14px rgba(138, 43, 226, 0.18),
-                        0 10px 30px rgba(0, 0, 0, 0.45);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        border-color 0.25s ease,
-                        box-shadow 0.25s ease;
-            animation: neonBorderPulse 3s ease-in-out infinite alternate;
-            user-select: none;
-        }
-        @keyframes neonBorderPulse {
-            from { box-shadow: 0 0 10px rgba(138,43,226,0.22), 0 10px 30px rgba(0,0,0,0.45); }
-            to   { box-shadow: 0 0 24px rgba(138,43,226,0.52), 0 10px 30px rgba(0,0,0,0.45); }
-        }
-        .avatar-card:nth-child(2) { animation-delay: 0.6s; }
-        .avatar-card:nth-child(3) { animation-delay: 1.2s; }
-        .avatar-card:nth-child(4) { animation-delay: 1.8s; }
-
-        .avatar-icon-wrap {
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            display: grid;
-            place-items: center;
-            font-size: 2.2rem;
-            background: radial-gradient(circle, rgba(138,43,226,0.15), rgba(0,220,255,0.06));
-            border: 1.5px solid rgba(138, 43, 226, 0.35);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        border-color 0.25s ease;
-        }
-        .avatar-name {
-            font-size: 0.75rem;
-            font-weight: 800;
-            color: rgba(255,255,255,0.78);
-            text-align: center;
-            letter-spacing: 0.4px;
-            line-height: 1.3;
-        }
-        .avatar-card:hover {
-            transform: scale(1.14) translateY(-4px);
-            border-color: rgba(0, 220, 90, 0.75);
-            box-shadow: 0 0 26px rgba(0, 220, 90, 0.45),
-                        0 0 52px rgba(0, 220, 90, 0.18),
-                        0 14px 44px rgba(0, 0, 0, 0.6);
-            animation: none;
-        }
-        .avatar-card:hover .avatar-icon-wrap {
-            transform: scale(1.10);
-            border-color: rgba(0, 220, 90, 0.65);
-        }
-        .avatar-card.selected {
-            transform: scale(1.14) translateY(-4px);
-            border-color: rgba(0, 220, 90, 0.88);
-            box-shadow: 0 0 34px rgba(0, 220, 90, 0.60),
-                        0 0 68px rgba(0, 220, 90, 0.22),
-                        0 14px 44px rgba(0, 0, 0, 0.6);
-            animation: avatarBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-        }
-        @keyframes avatarBounce {
-            0%   { transform: scale(1); }
-            40%  { transform: scale(1.26) translateY(-8px); }
-            70%  { transform: scale(1.08) translateY(-2px); }
-            100% { transform: scale(1.14) translateY(-4px); }
-        }
-        .avatar-close {
-            background: transparent;
-            border: 1px solid rgba(255,255,255,0.15);
-            color: rgba(255,255,255,0.45);
-            border-radius: 999px;
-            padding: 8px 24px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-            cursor: pointer;
-            transition: border-color 0.2s ease, color 0.2s ease;
-        }
-        .avatar-close:hover {
-            border-color: rgba(255,255,255,0.38);
-            color: #fff;
-        }
+        /* Avatar picker overlay removed — child_map.html handles the full setup flow */
 
     </style>
 </head>
@@ -714,7 +575,7 @@
                     </div>
                 </div>
 
-                <div class="role-card child" onclick="openAvatarPicker()">
+                <div class="role-card child" onclick="location.href='child_map.html'">
                     <div class="content">
                         <span class="role-badge" data-i18n="portal.child.badge">LIVE MISSION</span>
                         <div class="role-heading" data-i18n="portal.child.heading">Child Quest</div>
@@ -726,68 +587,6 @@
 
             <div class="portal-footer" data-i18n="portal.footer">SAFE STEP &nbsp;•&nbsp; PREMIUM ECOSYSTEM</div>
         </div>
-    </div>
-
-    <!-- AVATAR PICKER OVERLAY -->
-    <div id="avatar-overlay">
-        <div class="avatar-overlay-title" data-i18n="avatar.title">Choose Your Hero</div>
-        <div class="avatar-overlay-sub" data-i18n="avatar.sub">SELECT YOUR IDENTITY &nbsp;·&nbsp; MISSION BEGINS</div>
-
-        <div class="avatar-grid">
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Astro Scout', '🧑‍🚀')">
-                <div class="avatar-icon-wrap">🧑‍🚀</div>
-                <div class="avatar-name">Astro<br>Scout</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'SafeBot Prime', '🤖')">
-                <div class="avatar-icon-wrap">🤖</div>
-                <div class="avatar-name">SafeBot<br>Prime</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Cyber Detective', '🕵️‍♂️')">
-                <div class="avatar-icon-wrap">🕵️‍♂️</div>
-                <div class="avatar-name">Cyber<br>Detective</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Guardian Knight', '🦸‍♂️')">
-                <div class="avatar-icon-wrap">🦸‍♂️</div>
-                <div class="avatar-name">Guardian<br>Knight</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Neon Fox', '🦊')">
-                <div class="avatar-icon-wrap">🦊</div>
-                <div class="avatar-name">Neon<br>Fox</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Cyber Cat', '🐱')">
-                <div class="avatar-icon-wrap">🐱</div>
-                <div class="avatar-name">Cyber<br>Cat</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Techno Dragon', '🐉')">
-                <div class="avatar-icon-wrap">🐉</div>
-                <div class="avatar-name">Techno<br>Dragon</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Shadow Ninja', '🥷')">
-                <div class="avatar-icon-wrap">🥷</div>
-                <div class="avatar-name">Shadow<br>Ninja</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Power Bear', '🐻')">
-                <div class="avatar-icon-wrap">🐻</div>
-                <div class="avatar-name">Power<br>Bear</div>
-            </div>
-
-            <div class="avatar-card" onclick="selectAvatar(this, 'Sky Eagle', '🦅')">
-                <div class="avatar-icon-wrap">🦅</div>
-                <div class="avatar-name">Sky<br>Eagle</div>
-            </div>
-
-        </div>
-
-        <button class="avatar-close" data-i18n="avatar.back" onclick="closeAvatarPicker()">&#x2715;&nbsp;&nbsp;BACK</button>
     </div>
 
     <script>
@@ -802,32 +601,8 @@
             }, 2500);
         });
 
-        function openAvatarPicker() {
-            document.getElementById('avatar-overlay').classList.add('show');
-        }
-
-        function closeAvatarPicker() {
-            document.getElementById('avatar-overlay').classList.remove('show');
-            document.querySelectorAll('.avatar-card').forEach(c => c.classList.remove('selected'));
-        }
-
-        function selectAvatar(card, name, emoji) {
-            document.querySelectorAll('.avatar-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-
-            sessionStorage.setItem('childAvatar', name);
-            sessionStorage.setItem('childAvatarEmoji', emoji);
-            localStorage.setItem('kid_avatar', emoji);
-            localStorage.setItem('kid_avatar_name', name);
-
-            setTimeout(() => {
-                location.href = 'child_map.html';
-            }, 620);
-        }
-
-        document.getElementById('avatar-overlay').addEventListener('click', function(e) {
-            if (e.target === this) closeAvatarPicker();
-        });
+        // Avatar picker removed — child_map.html handles the complete setup flow:
+        // Step 1 (name) → Step 2 (avatar) → Step 3 (pairing code).
     </script>
 </body>
 </html>
