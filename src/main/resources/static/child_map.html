@@ -303,7 +303,7 @@
 
         /* ─── Pairing overlay — full-screen 3-step wizard ─── */
         #pairing-overlay {
-            display: none;
+            display: none !important;
             position: fixed;
             inset: 0;
             background: rgba(7, 7, 18, 0.97);
@@ -314,7 +314,7 @@
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
         }
-        #pairing-overlay.show { display: flex; }
+        #pairing-overlay.show { display: flex !important; }
         #pairing-overlay.fade-out { animation: fadeOut 0.45s ease forwards; }
         @keyframes fadeOut { to { opacity: 0; visibility: hidden; } }
 
@@ -942,6 +942,15 @@
     <script src="js/api-config.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        /* ── Hard-reset overlay on every load — prevents bfcache DOM restore
+               from showing stale avatar content before JS runs ────────────── */
+        (function () {
+            var o = document.getElementById('pairing-overlay');
+            if (o) o.classList.remove('show');
+            var w = document.getElementById('wizard-container');
+            if (w) w.innerHTML = '';
+        })();
+
         /* ── Non-blocking banner ───────────────────────────────────────── */
         (function () {
             const b = document.getElementById('notification-banner');
@@ -1096,12 +1105,13 @@
 
         /* ── Step 2: avatar selection ───────────────────────────────────── */
         function showStep2() {
-            // Guard: can only advance if name-input exists (step-1 is currently rendered)
-            // OR if kidName is already set (coming back from step-3).
+            // Guard: MUST be called from step-1 context — kid-name-input must exist in DOM.
+            // This prevents any external or accidental invocation from showing avatars.
             const inp = document.getElementById('kid-name-input');
-            if (inp) kidName = inp.value.trim();
-            if ((kidName || '').length < 2) return;
-            // Ensure overlay is visible (covers the case where user navigates back)
+            if (!inp) return;
+            kidName = inp.value.trim();
+            if (kidName.length < 2) return;
+            // Overlay is already showing (we're inside step 1); keep it visible.
             document.getElementById('pairing-overlay').classList.add('show');
             document.getElementById('hud-name').textContent = kidName;
 
