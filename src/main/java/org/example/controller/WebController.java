@@ -28,6 +28,7 @@ public class WebController {
         String kidName = "";
         String sessionId = "";
         long updatedAt = 0;
+        int xpPoints = 0;      // accumulated XP — persists across child page reloads
     }
 
     private final LiveChildState liveChild = new LiveChildState();
@@ -113,8 +114,9 @@ public class WebController {
     public ResponseEntity<Map<String, Object>> launchMission() {
         missionActive = true;
         isMissionAccomplished = false;
-        liveChild.latitude = 45.6427;
-        liveChild.longitude = 25.5887;
+        // Do NOT reset liveChild.latitude/longitude here — the child may have already
+        // synced their real GPS position; overwriting it with hardcoded coords causes
+        // the parent's map marker to jump to the wrong location.
         liveChild.updatedAt = Instant.now().toEpochMilli();
         Map<String, Object> body = new HashMap<>();
         body.put("missionActive", true);
@@ -148,6 +150,41 @@ public class WebController {
         body.put("updatedAt", liveChild.updatedAt);
         body.put("missionActive", missionActive);
         body.put("dangerActive", isDangerActive);
+        return ResponseEntity.ok(body);
+    }
+
+    // --- CHILD XP (in-memory, persists while the server is running) ---
+
+    /**
+     * Returns the stored XP for a given kidName (or the current liveChild if no name given).
+     * Used by the child frontend to restore XP after a page reload.
+     */
+    @GetMapping("/child/xp")
+    public ResponseEntity<Map<String, Object>> getChildXP(
+            @RequestParam(required = false) String kidName) {
+        Map<String, Object> body = new HashMap<>();
+        boolean nameMatch = kidName == null || kidName.isBlank()
+                || kidName.equalsIgnoreCase(liveChild.kidName);
+        body.put("kidName",   liveChild.kidName);
+        body.put("xpPoints",  nameMatch ? liveChild.xpPoints : 0);
+        body.put("matched",   nameMatch);
+        return ResponseEntity.ok(body);
+    }
+
+    /**
+     * Saves the child's accumulated XP to the server so it survives a page reload.
+     * Payload: { "kidName": "...", "xpPoints": 350 }
+     */
+    @PostMapping("/child/xp")
+    public ResponseEntity<Map<String, Object>> updateChildXP(
+            @RequestBody Map<String, Object> payload) {
+        if (payload.get("xpPoints") instanceof Number n)
+            liveChild.xpPoints = n.intValue();
+        if (payload.get("kidName") instanceof String s && !s.isBlank())
+            liveChild.kidName = s;
+        Map<String, Object> body = new HashMap<>();
+        body.put("success",  true);
+        body.put("xpPoints", liveChild.xpPoints);
         return ResponseEntity.ok(body);
     }
 
@@ -248,6 +285,7 @@ public class WebController {
         liveChild.avatar = "🤖";
         liveChild.kidName = "";
         liveChild.sessionId = "";
+        liveChild.xpPoints = 0;
         liveChild.updatedAt = Instant.now().toEpochMilli();
 
         Map<String, Object> body = new HashMap<>();

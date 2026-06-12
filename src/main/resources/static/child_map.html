@@ -1151,8 +1151,25 @@
             const title = document.getElementById('avatar-step-title');
             if (title) title.textContent = 'Choose your avatar, ' + kidName;
 
-            _buildAvatarGrid();
             _showSetupStep('step-avatar');
+            // Fetch backend XP for this kidName first, then build the grid so lock
+            // states reflect any previously earned XP stored on the server.
+            _fetchBackendXPAndBuildGrid(name);
+        }
+
+        async function _fetchBackendXPAndBuildGrid(name) {
+            try {
+                const xpRes  = await fetch(`${API}/child/xp?kidName=${encodeURIComponent(name)}`);
+                const xpData = await xpRes.json();
+                if (xpData.matched && xpData.xpPoints > 0) {
+                    totalPoints         = xpData.xpPoints;
+                    _totalPointsAllTime = Math.max(_totalPointsAllTime, xpData.xpPoints);
+                    localStorage.setItem('safestep_points',      String(totalPoints));
+                    localStorage.setItem('safestep_total_points', String(_totalPointsAllTime));
+                    updateProgressUI();
+                }
+            } catch (_) { /* server unreachable — use localStorage XP */ }
+            _buildAvatarGrid();
         }
 
         function _buildAvatarGrid() {
@@ -1261,6 +1278,20 @@
                     body: JSON.stringify({ latitude: childPos.lat, longitude: childPos.lng, avatar: kidAvatar, kidName, sessionId, missionActive })
                 });
 
+                // Authoritative XP fetch — the server holds the canonical value;
+                // update local totalPoints and rebuild the avatar grid (now hidden but
+                // ensures hud-score and stats panel reflect the correct number).
+                try {
+                    const xpRes  = await fetch(`${API}/child/xp?kidName=${encodeURIComponent(name)}`);
+                    const xpData = await xpRes.json();
+                    if (xpData.matched && xpData.xpPoints > 0) {
+                        totalPoints         = xpData.xpPoints;
+                        _totalPointsAllTime = Math.max(_totalPointsAllTime, xpData.xpPoints);
+                        localStorage.setItem('safestep_points',      String(totalPoints));
+                        localStorage.setItem('safestep_total_points', String(_totalPointsAllTime));
+                    }
+                } catch (_) { /* ignore — use locally accumulated XP */ }
+
                 const setupEl = document.getElementById('setup-container');
                 if (setupEl) {
                     setupEl.style.transition = 'opacity 0.42s ease';
@@ -1308,11 +1339,22 @@
         }
 
         function _addPoints(pts) {
-            totalPoints       += pts;
+            totalPoints         += pts;
             _totalPointsAllTime += pts;
-            localStorage.setItem('safestep_points', String(totalPoints));
+            localStorage.setItem('safestep_points',      String(totalPoints));
             localStorage.setItem('safestep_total_points', String(_totalPointsAllTime));
             updateChildStats();
+            // Fire-and-forget: persist XP to backend so it survives a page reload
+            _syncXPToServer();
+        }
+
+        function _syncXPToServer() {
+            if (!kidName) return; // not connected yet
+            fetch(`${API}/child/xp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kidName, xpPoints: totalPoints })
+            }).catch(() => { /* silent — XP is also safe in localStorage */ });
         }
 
         let missionActive = false;
@@ -1945,12 +1987,25 @@
         }
 
         window.onload = () => {
-            // Start fresh: nicio sesiune salvată, nicio restabilire automată
+            // Preserve XP counters across page reloads so avatars stay unlocked
+            // between demo runs. Everything else (session, pairing) is wiped for
+            // a clean setup flow every time.
+            const _savedXp       = localStorage.getItem('safestep_points');
+            const _savedXpTotal  = localStorage.getItem('safestep_total_points');
+            const _savedMissions = localStorage.getItem('safestep_missions');
+
             localStorage.clear();
             sessionStorage.clear();
-            totalPoints         = 0;
-            _totalPointsAllTime = 0;
-            _missionsCompleted  = 0;
+
+            // Restore XP keys immediately after the clear
+            if (_savedXp)       localStorage.setItem('safestep_points',       _savedXp);
+            if (_savedXpTotal)  localStorage.setItem('safestep_total_points',  _savedXpTotal);
+            if (_savedMissions) localStorage.setItem('safestep_missions',       _savedMissions);
+
+            totalPoints         = parseInt(_savedXp       || '0', 10);
+            _totalPointsAllTime = parseInt(_savedXpTotal  || String(totalPoints), 10);
+            _missionsCompleted  = parseInt(_savedMissions || '0', 10);
+
             kidName   = '';
             kidAvatar = '';
             document.getElementById('hud-name').textContent   = 'Explorer';
