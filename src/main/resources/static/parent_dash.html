@@ -979,12 +979,17 @@
             _setZoneStyle('#ef4444');
             _setPulse(true);
 
-            // Show banner only once per danger event (not on every poll tick)
-            if (_lastDangerState !== 'danger') {
-                _lastDangerState = 'danger';
-                showBanner('AVERTISMENT: Zona configurata a fost parasita', 'danger', 0);
-            }
-        }
+            // Show banner and control audio only when state actually changes
+if (_lastRadarOutside !== outside) {
+    _lastRadarOutside = outside;
+    if (outside) {
+        showBanner('WARNING: Configured safe zone has been exited', 'danger', 0);
+        startAlarmBeep();
+    } else {
+        showBanner('SUCCESS: Child is back within the safe zone', 'success', 3000);
+        stopAlarmBeep();
+    }
+}
 
         function showSuccessAlert(childName) {
             if (successModalOpen) return;
