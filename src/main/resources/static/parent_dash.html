@@ -553,6 +553,8 @@
         let BASE_LAT = 0;
         let BASE_LNG = 0;
         const SAFE_RADIUS = 200;
+        const GEO_TOLERANCE_M = 15;
+        const EFFECTIVE_SAFE_RADIUS = SAFE_RADIUS + GEO_TOLERANCE_M;
 
         /* ── Non-blocking banner ───────────────────────────────────────── */
         (function () {
@@ -569,12 +571,57 @@
             if (duration > 0) b._nbTimer = setTimeout(() => b.classList.remove('nb-visible'), duration);
         }
 
+        let _alarmAudioCtx = null;
+        let _alarmIntervalId = null;
+
+        function _getAudioCtx() {
+            if (!_alarmAudioCtx) {
+                try { _alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+                catch (e) { return null; }
+            }
+            if (_alarmAudioCtx.state === 'suspended') _alarmAudioCtx.resume().catch(() => {});
+            return _alarmAudioCtx;
+        }
+
+        document.addEventListener('click', () => _getAudioCtx(), { once: true });
+
+        function _playBeep() {
+            const ctx = _getAudioCtx();
+            if (!ctx) return;
+            try {
+                const t    = ctx.currentTime;
+                const osc  = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(940, t);
+                osc.frequency.setValueAtTime(680, t + 0.18);
+                gain.gain.setValueAtTime(0.28, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+                osc.start(t);
+                osc.stop(t + 0.48);
+            } catch (e) { /* ignore audio errors */ }
+        }
+
+        function startAlarmBeep() {
+            if (_alarmIntervalId) return;
+            _playBeep();
+            _alarmIntervalId = setInterval(_playBeep, 3500);
+        }
+
+        function stopAlarmBeep() {
+            if (_alarmIntervalId) { clearInterval(_alarmIntervalId); _alarmIntervalId = null; }
+        }
+
         // Tracks last danger state — banner shown only on state change
         let _lastDangerState = null;
+        let _lastRadarOutside = null;
         /* ─────────────────────────────────────────────────────────────── */
 
         // Avatar lookup table — matches index.html & child_map.html
         const AVATAR_NAMES = {
+            'scout':  'Astro Scout',
             '🧑‍🚀': 'Astro Scout',
             '🤖':   'SafeBot Prime',
             '🕵️‍♂️': 'Cyber Detective',
@@ -586,6 +633,11 @@
             '🐻':   'Power Bear',
             '🦅':   'Sky Eagle',
         };
+
+        function avatarPinInitial(avatarKey) {
+            const name = AVATAR_NAMES[avatarKey] || 'Hero';
+            return name.charAt(0).toUpperCase();
+        }
 
         if (!email) window.location.href = 'parent_login.html';
         document.getElementById('parent-email-label').textContent = `Logged in as: ${email || 'parent@safestep.com'}`;
@@ -682,13 +734,13 @@
             return inside;
         }
 
-        // Returns true if the position is within SAFE_RADIUS of at least one active checkpoint.
+        // Returns true if the position is within the effective safe radius of at least one active checkpoint.
         function isInsideSafeZone(lat, lng) {
             if (checkpointCoords.length === 0) {
                 if (BASE_LAT === 0 && BASE_LNG === 0) return true;
-                return distanceMeters(lat, lng, BASE_LAT, BASE_LNG) <= SAFE_RADIUS;
+                return distanceMeters(lat, lng, BASE_LAT, BASE_LNG) <= EFFECTIVE_SAFE_RADIUS;
             }
-            return checkpointCoords.some(c => distanceMeters(lat, lng, c.lat, c.lng) <= SAFE_RADIUS);
+            return checkpointCoords.some(c => distanceMeters(lat, lng, c.lat, c.lng) <= EFFECTIVE_SAFE_RADIUS);
         }
 
         // Applies a color to all active zone circles (danger = red, safe = green).
@@ -789,7 +841,7 @@
             childLiveMarker = L.marker([45.9, 24.9], {
                 icon: L.divIcon({
                     className: 'parent-child-marker',
-                    html: '<div class="gps-pulse-wrapper"><div class="pulse-ring"></div><div class="parent-pin">🧑‍🚀</div></div>',
+                    html: '<div class="gps-pulse-wrapper"><div class="pulse-ring"></div><div class="parent-pin">A</div></div>',
                     iconSize: [44, 44], iconAnchor: [22, 22]
                 }),
                 zIndexOffset: 2000
@@ -802,9 +854,10 @@
             if (!childLiveMarker || !data.latitude) return;
             const lat      = data.latitude;
             const lng      = data.longitude;
-            const emoji    = data.avatar || '🧑‍🚀';
-            const heroName = AVATAR_NAMES[emoji] || 'Hero';
-            const kidLabel = data.kidName || 'Explorer';
+            const avatarKey = data.avatar || 'scout';
+            const heroName  = AVATAR_NAMES[avatarKey] || 'Hero';
+            const kidLabel  = data.kidName || 'Explorer';
+            const pinLetter = avatarPinInitial(avatarKey);
 
             // Store last known child position so safe-zone rechecks can use it instantly
             _lastChildLat = lat;
@@ -815,12 +868,12 @@
                 className: 'parent-child-marker',
                 html: `<div class="gps-pulse-wrapper${_parentMarkerDanger ? ' danger' : ''}">
                          <div class="pulse-ring"></div>
-                         <div class="parent-pin" title="${kidLabel} — ${heroName}">${emoji}</div>
+                         <div class="parent-pin" title="${kidLabel} — ${heroName}">${pinLetter}</div>
                        </div>`,
                 iconSize: [44, 44], iconAnchor: [22, 22]
             }));
             childLiveMarker.bindTooltip(
-                `<strong>${kidLabel}</strong><br>${heroName} ${emoji}`,
+                `<strong>${kidLabel}</strong><br>${heroName}`,
                 { permanent: false, direction: 'top', className: 'leaflet-hero-tooltip' }
             );
 
@@ -831,7 +884,7 @@
             }
 
             document.getElementById('hud-child').textContent =
-                `Child: ${kidLabel} ${emoji} · ${heroName}`;
+                `Child: ${kidLabel} · ${heroName}`;
             document.getElementById('hud-mission').textContent =
                 data.missionActive ? 'Mission: ACTIVE' : 'Mission: inactive';
         }
@@ -938,7 +991,7 @@
         async function launchMission() {
             await fetch(`${API}/mission/launch`, { method: 'POST' });
             switchView('home');
-            showBanner('Misiunea a fost lansata. Monitorizati harta.', 'success', 3500);
+            showBanner('Mission launched. Monitor the live map.', 'success', 3500);
             refreshMissionProgress();
         }
 
@@ -954,42 +1007,43 @@
         // Rechecks safe/danger status immediately using the last known child position.
         // Called after any change to checkpointCoords (add / remove checkpoint) so the
         // parent sees the correct state without waiting for the next poll cycle.
-        function _recheckSafeStatus() {
-            if (_lastChildLat === null || _lastChildLng === null) return;
-            const safe = isInsideSafeZone(_lastChildLat, _lastChildLng);
-            if (safe) {
-                if (_lastDangerState === 'danger') {
-                    document.getElementById('danger-overlay').classList.remove('visible');
-                    document.getElementById('hud-alert').style.display = 'none';
-                    document.getElementById('hud-alert').classList.remove('danger');
-                    _setZoneStyle('#22c55e');
-                    _setPulse(false);
-                    _lastDangerState = 'safe';
-                    showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
-                }
+        function _updateRadarGeofence(outside) {
+            if (outside) {
+                document.getElementById('danger-overlay').classList.add('visible');
+                document.getElementById('hud-alert').style.display = 'block';
+                document.getElementById('hud-alert').classList.add('danger');
+                _setZoneStyle('#ef4444');
+                _setPulse(true);
+                _lastDangerState = 'danger';
             } else {
-                showDangerAlert();
+                document.getElementById('danger-overlay').classList.remove('visible');
+                document.getElementById('hud-alert').style.display = 'none';
+                document.getElementById('hud-alert').classList.remove('danger');
+                _setZoneStyle('#22c55e');
+                _setPulse(false);
+                _lastDangerState = 'safe';
+            }
+
+            if (_lastRadarOutside !== outside) {
+                _lastRadarOutside = outside;
+                if (outside) {
+                    showBanner('WARNING: Configured safe zone has been exited', 'danger', 0);
+                    startAlarmBeep();
+                } else {
+                    showBanner('SUCCESS: Child is back within the safe zone', 'success', 3000);
+                    stopAlarmBeep();
+                }
             }
         }
 
-        function showDangerAlert() {
-            document.getElementById('danger-overlay').classList.add('visible');
-            document.getElementById('hud-alert').style.display = 'block';
-            document.getElementById('hud-alert').classList.add('danger');
-            _setZoneStyle('#ef4444');
-            _setPulse(true);
+        function _recheckSafeStatus() {
+            if (_lastChildLat === null || _lastChildLng === null) return;
+            _updateRadarGeofence(!isInsideSafeZone(_lastChildLat, _lastChildLng));
+        }
 
-            // Show banner and control audio only when state actually changes
-if (_lastRadarOutside !== outside) {
-    _lastRadarOutside = outside;
-    if (outside) {
-        showBanner('WARNING: Configured safe zone has been exited', 'danger', 0);
-        startAlarmBeep();
-    } else {
-        showBanner('SUCCESS: Child is back within the safe zone', 'success', 3000);
-        stopAlarmBeep();
-    }
-}
+        function showDangerAlert() {
+            _updateRadarGeofence(true);
+        }
 
         function showSuccessAlert(childName) {
             if (successModalOpen) return;
@@ -1009,6 +1063,8 @@ if (_lastRadarOutside !== outside) {
             _setZoneStyle('#22c55e');
             _setPulse(false);
             _lastDangerState = 'safe';
+            stopAlarmBeep();
+            _lastRadarOutside = false;
         }
 
         async function acknowledgeMission() {
@@ -1023,7 +1079,7 @@ if (_lastRadarOutside !== outside) {
             try {
                 await fetch(`${API}/routes/reset-active`, { method: 'POST' });
             } catch (e) {
-                showBanner('Serverul este inaccesibil. Verificati conexiunea.', 'warning', 4000);
+                showBanner('Server unreachable. Please check your network connection.', 'warning', 4000);
                 return;
             }
 
@@ -1034,6 +1090,8 @@ if (_lastRadarOutside !== outside) {
             _lastChildLng    = null;
             _parentMapCenteredOnChild = false;
             _lastDangerState = null;
+            _lastRadarOutside = null;
+            stopAlarmBeep();
 
             // Clear the route list and safe-zone circles
             document.getElementById('steps-preview').innerHTML = '';
@@ -1056,7 +1114,7 @@ if (_lastRadarOutside !== outside) {
             const sideBtn = document.getElementById('btn-new-mission-sidebar');
             if (sideBtn) sideBtn.classList.remove('visible');
 
-            showBanner('Ruta noua activata. Adaugati noi checkpoint-uri.', 'success', 3500);
+            showBanner('New route activated. Add new checkpoints.', 'success', 3500);
             switchView('route');
 
             // Generate a fresh pairing code automatically for the new mission
@@ -1064,13 +1122,7 @@ if (_lastRadarOutside !== outside) {
         }
 
         async function resetDangerAlert() {
-            document.getElementById('danger-overlay').classList.remove('visible');
-            document.getElementById('hud-alert').style.display = 'none';
-            document.getElementById('hud-alert').classList.remove('danger');
-            _setZoneStyle('#22c55e');
-            _setPulse(false);
-            _lastDangerState = 'safe';
-            showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
+            _updateRadarGeofence(false);
             try { await fetch(`${API}/parent/clear-alert`, { method: 'POST' }); } catch (e) { console.error(e); }
         }
 
@@ -1089,28 +1141,12 @@ if (_lastRadarOutside !== outside) {
                 const hasCoords  = !!(data.latitude && data.longitude);
 
                 if (data.dangerActive && hasPaired) {
-                    showDangerAlert();
+                    _updateRadarGeofence(true);
                 } else if (hasPaired && hasMission && hasCoords && checkpointCoords.length > 0) {
-                    const safe = isInsideSafeZone(data.latitude, data.longitude);
-                    if (!safe) {
-                        showDangerAlert();
-                    } else if (_lastDangerState === 'danger') {
-                        // Child returned inside the safe zone — restore green visuals
-                        _lastDangerState = 'safe';
-                        document.getElementById('danger-overlay').classList.remove('visible');
-                        document.getElementById('hud-alert').style.display = 'none';
-                        document.getElementById('hud-alert').classList.remove('danger');
-                        _setZoneStyle('#22c55e');
-                        _setPulse(false);
-                        showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
-                    }
-                } else if (!hasPaired && _lastDangerState === 'danger') {
-                    // Child disconnected / demo was reset — clear stale danger state
-                    document.getElementById('danger-overlay').classList.remove('visible');
-                    document.getElementById('hud-alert').style.display = 'none';
-                    document.getElementById('hud-alert').classList.remove('danger');
-                    _setZoneStyle('#22c55e');
-                    _setPulse(false);
+                    _updateRadarGeofence(!isInsideSafeZone(data.latitude, data.longitude));
+                } else if (!hasPaired && (_lastDangerState === 'danger' || _lastRadarOutside)) {
+                    _updateRadarGeofence(false);
+                    _lastRadarOutside = null;
                     _lastDangerState = null;
                 }
             } catch (e) { console.error('Position poll failed', e); }
@@ -1156,7 +1192,7 @@ if (_lastRadarOutside !== outside) {
             // Two-tap confirm: first tap shows warning, second tap within 5s executes reset
             if (!_resetPending) {
                 _resetPending = true;
-                showBanner('Apasati din nou Reset in 5 secunde pentru confirmare. Aceasta actiune sterge toate checkpoint-urile si alertele.', 'warning', 5000);
+                showBanner('Press Reset again within 5 seconds to confirm. This will clear all checkpoints and alerts.', 'warning', 5000);
                 _resetTimer = setTimeout(() => { _resetPending = false; }, 5000);
                 return;
             }
@@ -1166,10 +1202,10 @@ if (_lastRadarOutside !== outside) {
                 await fetch(`${API}/system/reset`, { method: 'POST' });
                 checkpointIndex = 0;
                 document.getElementById('steps-preview').innerHTML = '';
-                showBanner('Demo resetat. Puteti relua prezentarea.', 'success', 2000);
+                showBanner('Demo data reset. You may resume the presentation.', 'success', 2000);
                 setTimeout(() => location.reload(), 2100);
             } catch (e) {
-                showBanner('Serverul este inaccesibil. Verificati conexiunea.', 'warning', 5000);
+                showBanner('Server unreachable. Please check your network connection.', 'warning', 5000);
             }
         }
 
