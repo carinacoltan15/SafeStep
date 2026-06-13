@@ -1778,16 +1778,19 @@
             }
 
             // Show banner and control audio only when state actually changes
-            if (_lastRadarOutside !== outside) {
-                _lastRadarOutside = outside;
-                if (outside) {
-                    showBanner('AVERTISMENT: Zona configurata a fost parasita', 'danger', 0);
-                    startAlarmBeep();
-                } else {
-                    showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
-                    stopAlarmBeep();
-                }
-            }
+        if (_lastRadarOutside !== outside) {
+        _lastRadarOutside = outside;
+        if (outside) {
+        showBanner('WARNING: Configured safe zone has been exited', 'danger', 0);
+        startAlarmBeep();
+        }
+        else {
+
+        showBanner('SUCCESS: Child is back within the safe zone', 'success', 3000);
+        stopAlarmBeep();
+
+        }
+        }
         }
 
         async function syncPositionToServer() {
