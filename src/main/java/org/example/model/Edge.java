@@ -11,7 +11,7 @@ public class Edge {
         this.distance = distance;
     }
 
-    // Acestea sunt metodele care lipseau:
+
     public Node getSource() {
         return source;
     }
@@ -21,7 +21,7 @@ public class Edge {
     }
 
     public double getSafetyWeight() {
-        // Inovația ta: drumul e mai "lung" dacă zona e periculoasă [cite: 12, 31]
+
         return distance * destination.getSafetyScore();
     }
 }

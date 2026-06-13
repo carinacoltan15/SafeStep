@@ -20,7 +20,7 @@ public class RoutingService {
             for (Edge edge : allEdges) {
                 if (edge.getSource().equals(current)) {
                     Node neighbor = edge.getDestination();
-                    // INOVAȚIA TA: Calculăm ponderea folosind scorul de siguranță
+                    //  Calculăm ponderea folosind scorul de siguranță
                     double newDist = distances.get(current) + edge.getSafetyWeight();
 
                     if (newDist < distances.getOrDefault(neighbor, Double.MAX_VALUE)) {

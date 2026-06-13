@@ -15,7 +15,7 @@ public class ChildLocation {
     private double lon;
     private LocalDateTime timestamp = LocalDateTime.now();
 
-    // Constructor gol (obligatoriu pentru Hibernate)
+
     public ChildLocation() {}
 
     // Getters și Setters

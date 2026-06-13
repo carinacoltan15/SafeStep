@@ -18,13 +18,13 @@ public class Node {
     private double latitude;
     private double longitude;
 
-    // Pentru logica de siguranta (ce cauta Edge.java)
+
     private double safetyScore;
 
-    // Pentru logica de progres (ce cauta WebController.java)
+
     private boolean isVisited;
 
-    // Constructor gol obligatoriu pentru JPA
+
     public Node() {}
 
     // Constructor cu parametri (util pentru teste in Main)
@@ -78,7 +78,7 @@ public class Node {
         this.longitude = longitude;
     }
 
-    // Metoda ceruta de Edge.java
+
     public double getSafetyScore() {
         return safetyScore;
     }
@@ -87,7 +87,7 @@ public class Node {
         this.safetyScore = safetyScore;
     }
 
-    // Metoda ceruta de WebController.java
+
     public boolean isVisited() {
         return isVisited;
     }

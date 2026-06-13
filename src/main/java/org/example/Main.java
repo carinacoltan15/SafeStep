@@ -21,7 +21,7 @@ public class Main {
     @Bean
     CommandLineRunner init(NodeRepository repo) {
         return args -> {
-            // Lăsăm gol aici pentru că acum adăugăm punctele manual din Dashboard-ul Părinte!
+
             System.out.println(">>> SERVER PORNIT! ADAUGĂ PUNCTE DIN BROWSER.");
         };
     }
