@@ -966,24 +966,38 @@
                 const data = await res.json();
                 updateChildMarkerOnMap(data);
 
-                if (data.dangerActive) {
+                // Guard: only run geofence checks when a child has actually paired
+                // (kidName is populated) AND the mission is live AND checkpoints exist.
+                // This eliminates false "DANGER" banners caused by the default server
+                // coordinates that get sent before the child completes setup.
+                const hasPaired  = !!(data.kidName && data.kidName.trim().length > 0);
+                const hasMission = !!data.missionActive;
+                const hasCoords  = !!(data.latitude && data.longitude);
+
+                if (data.dangerActive && hasPaired) {
                     showDangerAlert();
-                } else if (data.latitude && data.longitude) {
+                } else if (hasPaired && hasMission && hasCoords && checkpointCoords.length > 0) {
                     const safe = isInsideSafeZone(data.latitude, data.longitude);
                     if (!safe) {
                         showDangerAlert();
-                    } else {
-                        // Child is inside the safe zone — restore green visuals
-                        if (_lastDangerState === 'danger') {
-                            _lastDangerState = 'safe';
-                            document.getElementById('danger-overlay').classList.remove('visible');
-                            document.getElementById('hud-alert').style.display = 'none';
-                            document.getElementById('hud-alert').classList.remove('danger');
-                            _setZoneStyle('#22c55e');
-                            _setPulse(false);
-                            showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
-                        }
+                    } else if (_lastDangerState === 'danger') {
+                        // Child returned inside the safe zone — restore green visuals
+                        _lastDangerState = 'safe';
+                        document.getElementById('danger-overlay').classList.remove('visible');
+                        document.getElementById('hud-alert').style.display = 'none';
+                        document.getElementById('hud-alert').classList.remove('danger');
+                        _setZoneStyle('#22c55e');
+                        _setPulse(false);
+                        showBanner('Status: Copilul se afla in zona configurata', 'safe', 6000);
                     }
+                } else if (!hasPaired && _lastDangerState === 'danger') {
+                    // Child disconnected / demo was reset — clear stale danger state
+                    document.getElementById('danger-overlay').classList.remove('visible');
+                    document.getElementById('hud-alert').style.display = 'none';
+                    document.getElementById('hud-alert').classList.remove('danger');
+                    _setZoneStyle('#22c55e');
+                    _setPulse(false);
+                    _lastDangerState = null;
                 }
             } catch (e) { console.error('Position poll failed', e); }
         }

@@ -671,6 +671,102 @@
         .accomplished-btn:hover { transform: translateY(-2px); box-shadow: 0 0 34px rgba(0, 230, 118, 0.45); }
         .btn-premium, .btn-ghost { max-width: 100%; }
 
+        /* ── Avatar Shop Overlay ─────────────────────────────────────────── */
+        #avatar-shop-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 99998;
+            background: rgba(7, 7, 18, 0.86);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+        }
+        #avatar-shop-overlay.open { display: flex; }
+        .shop-card {
+            width: min(520px, 100%);
+            max-height: 88dvh;
+            overflow-y: auto;
+            background: rgba(9, 9, 22, 0.98);
+            border-radius: 24px;
+            border: 1px solid rgba(0, 255, 255, 0.20);
+            box-shadow: 0 0 0 1px rgba(0,255,255,0.06),
+                        0 0 60px rgba(0,255,255,0.10),
+                        0 30px 80px rgba(0,0,0,0.80);
+            padding: 28px 22px 32px;
+            animation: shopCardIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes shopCardIn {
+            from { opacity: 0; transform: scale(0.88) translateY(24px); }
+            to   { opacity: 1; transform: scale(1)    translateY(0);    }
+        }
+        .shop-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .shop-title {
+            font-size: 1.45rem; font-weight: 900; color: #fff;
+            letter-spacing: -0.01em; line-height: 1.15;
+        }
+        .shop-title-sub {
+            margin-top: 5px; font-size: 0.78rem;
+            color: rgba(255,255,255,0.36); line-height: 1.45;
+        }
+        .shop-header-right {
+            display: flex; flex-direction: column;
+            align-items: flex-end; gap: 8px; flex-shrink: 0;
+        }
+        .shop-xp-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 6px 14px; border-radius: 999px;
+            background: rgba(0,255,255,0.08);
+            border: 1px solid rgba(0,255,255,0.24);
+            color: #00ffff; font-size: 0.88rem; font-weight: 900;
+            white-space: nowrap; letter-spacing: 0.2px;
+        }
+        .shop-close-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: rgba(255,255,255,0.55);
+            border-radius: 12px; padding: 7px 11px;
+            font-size: 0.78rem; font-weight: 800;
+            cursor: pointer; transition: var(--transition);
+        }
+        .shop-close-btn:hover {
+            background: rgba(255,255,255,0.10);
+            color: #fff; border-color: rgba(255,255,255,0.22);
+        }
+        /* "Equipped" card variant */
+        .avatar-card.equipped {
+            border-color: #00ffff !important;
+            box-shadow: 0 0 0 2px #00ffff, 0 0 44px rgba(0,255,255,0.30) !important;
+            background: rgba(0,255,255,0.07) !important;
+            transform: translateY(-3px);
+            pointer-events: none;
+        }
+        .av-equipped-badge {
+            margin-top: 6px; font-size: 0.56rem; font-weight: 900;
+            letter-spacing: 1.2px; color: #00ffff;
+            text-transform: uppercase; display: block;
+        }
+        .av-unlocked-badge {
+            margin-top: 6px; font-size: 0.56rem; font-weight: 900;
+            letter-spacing: 1px; color: rgba(34,197,94,0.72);
+            text-transform: uppercase; display: block;
+        }
+        /* Clickable hint on the HUD avatar bubble */
+        .hud-avatar { cursor: pointer; }
+        .hud-avatar:hover {
+            transform: scale(1.12);
+            box-shadow: 0 0 24px rgba(0,255,255,0.35) !important;
+            border-color: rgba(0,255,255,0.55) !important;
+        }
+
         /* ─── GPS Toggle ─── */
         .gps-toggle-wrap {
             display: flex;
@@ -918,10 +1014,29 @@
         </div>
     </div>
 
+    <!-- Avatar Shop Overlay — accessible from HUD avatar bubble or "Avatar Shop" button -->
+    <div id="avatar-shop-overlay" role="dialog" aria-modal="true" aria-label="Avatar Shop">
+        <div class="shop-card">
+            <div class="shop-header">
+                <div>
+                    <div class="shop-title">Avatar Shop</div>
+                    <div class="shop-title-sub">Earn XP to unlock new heroes. Tap to equip instantly.</div>
+                </div>
+                <div class="shop-header-right">
+                    <div class="shop-xp-badge"><span id="shop-xp-display">0</span>&nbsp;XP</div>
+                    <button class="shop-close-btn" type="button" onclick="closeAvatarShop()" aria-label="Close">&#x2715; Close</button>
+                </div>
+            </div>
+            <div class="avatar-grid" id="shop-avatar-grid"></div>
+        </div>
+    </div>
+
     <div class="mission-panel">
         <div class="game-hud">
             <div class="hud-left">
-                <div class="hud-avatar" id="hud-avatar"></div>
+                <div class="hud-avatar" id="hud-avatar"
+                     onclick="openAvatarShop()"
+                     title="Open Avatar Shop"></div>
                 <div style="min-width:0;">
                     <div class="hud-name" id="hud-name">Explorer</div>
                     <div class="hud-sub" id="session-tag">Session: —</div>
@@ -931,7 +1046,8 @@
                 <div class="hud-score" id="hud-score">Current Score: 0 XP</div>
                 <div class="hud-bar"><div id="hud-progress-fill"></div></div>
                 <div class="hud-actions">
-                    <button class="btn-hud-ghost" type="button" onclick="logoutChild()" data-i18n="mission.switch.btn">Switch Account / Reset</button>
+                    <button class="btn-hud-ghost" type="button" onclick="openAvatarShop()">Avatar Shop</button>
+                    <button class="btn-hud-ghost" type="button" onclick="logoutChild()" data-i18n="mission.switch.btn">Switch / Reset</button>
                 </div>
             </div>
         </div>
@@ -1357,6 +1473,90 @@
             }).catch(() => { /* silent — XP is also safe in localStorage */ });
         }
 
+        /* ══════════════════════════════════════════════════════════════════
+           AVATAR SHOP — live during mission, accessible from HUD bubble
+           ══════════════════════════════════════════════════════════════════ */
+
+        function openAvatarShop() {
+            // Update the XP badge to live value
+            const badge = document.getElementById('shop-xp-display');
+            if (badge) badge.textContent = totalPoints;
+            _buildShopGrid();
+            const overlay = document.getElementById('avatar-shop-overlay');
+            if (overlay) {
+                // Re-trigger the card animation on each open
+                const card = overlay.querySelector('.shop-card');
+                if (card) { card.style.animation = 'none'; void card.offsetWidth; card.style.animation = ''; }
+                overlay.classList.add('open');
+            }
+        }
+
+        function closeAvatarShop() {
+            const overlay = document.getElementById('avatar-shop-overlay');
+            if (overlay) overlay.classList.remove('open');
+        }
+
+        function _buildShopGrid() {
+            const grid = document.getElementById('shop-avatar-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            AVATAR_CATALOG.forEach(av => {
+                const locked   = totalPoints < av.xp;
+                const equipped = av.emoji === kidAvatar;
+                const card     = document.createElement('div');
+                card.className = 'avatar-card'
+                    + (locked   ? ' locked'   : '')
+                    + (equipped ? ' equipped' : '');
+                card.title = av.label;
+                card.innerHTML =
+                    `<span class="av-emoji">${av.emoji}</span>` +
+                    `<span class="av-label">${av.label}</span>` +
+                    (locked   ? `<span class="av-lock-badge">LOCKED &middot; ${av.xp} XP</span>` : '') +
+                    (equipped ? `<span class="av-equipped-badge">EQUIPPED</span>`              : '') +
+                    (!locked && !equipped ? `<span class="av-unlocked-badge">TAP TO EQUIP</span>` : '');
+                if (!locked && !equipped) {
+                    card.addEventListener('click', () => _equipAvatar(av.emoji, av.label));
+                }
+                grid.appendChild(card);
+            });
+        }
+
+        function _equipAvatar(emoji, label) {
+            if (emoji === kidAvatar) return; // already wearing it
+            kidAvatar = emoji;
+            localStorage.setItem('kid_avatar', emoji);
+
+            // Update every avatar display point in the UI
+            document.getElementById('hud-avatar').textContent = emoji;
+            rebuildChildMarker();
+
+            // Sync new avatar to the backend so the parent's map reflects the change
+            if (isPaired) {
+                fetch(`${API}/child/position`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        latitude: childPos.lat, longitude: childPos.lng,
+                        avatar: emoji, kidName, sessionId, missionActive
+                    })
+                }).catch(() => {});
+            }
+
+            // Celebration burst + banner
+            confetti({ particleCount: 65, spread: 58, origin: { y: 0.45 } });
+            showBanner(`${label} equipped!`, 'success', 2500);
+
+            // Refresh the grid so the new selection shows immediately, then auto-close
+            _buildShopGrid();
+            setTimeout(closeAvatarShop, 1350);
+        }
+
+        // Close shop on Escape key or backdrop click
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAvatarShop(); });
+        document.getElementById('avatar-shop-overlay').addEventListener('click', e => {
+            if (e.target === document.getElementById('avatar-shop-overlay')) closeAvatarShop();
+        });
+
         let missionActive = false;
         let allNodes = [];
         let currentStep = null;
@@ -1399,14 +1599,14 @@
         }
 
         // Returns true if the child is within SAFE_RADIUS_M of at least one active checkpoint.
-        // Uses Leaflet's native distanceTo for accurate spherical distance computation.
+        // Uses the same Haversine formula as the parent dashboard — keeps both sides identical.
         function isInsideSafeZone(lat, lng) {
             const coords = _safeZoneCoords();
             if (coords.length === 0) {
                 if (!_centerFromGps) return true;
-                return L.latLng(lat, lng).distanceTo(L.latLng(CENTER.lat, CENTER.lng)) <= SAFE_RADIUS_M;
+                return distanceMeters(lat, lng, CENTER.lat, CENTER.lng) <= SAFE_RADIUS_M;
             }
-            return coords.some(c => L.latLng(lat, lng).distanceTo(L.latLng(c.lat, c.lng)) <= SAFE_RADIUS_M);
+            return coords.some(c => distanceMeters(lat, lng, c.lat, c.lng) <= SAFE_RADIUS_M);
         }
 
         // Draws one green L.circle (200 m radius) per active checkpoint — no map recentering.
@@ -1570,6 +1770,10 @@
         }
 
         async function syncPositionToServer() {
+            // Never send default/pre-pairing coordinates to the server — doing so would
+            // put a stale marker at the Romania centre and trigger false danger alerts on
+            // the parent dashboard before the child has even connected.
+            if (!isPaired) return;
             try {
                 await fetch(`${API}/child/position`, {
                     method: 'POST',
@@ -1797,6 +2001,7 @@
         }
 
         async function syncPositionToServerCoords(lat, lng) {
+            if (!isPaired) return;
             try {
                 await fetch(`${API}/child/position`, {
                     method: 'POST',
@@ -2014,11 +2219,13 @@
             // Forțează vizibilitatea exclusiv pe step-name
             _showSetupStep('step-name');
 
-            // Detectează GPS real — re-centrează harta și setează CENTER înainte de orice
+            // Detect real GPS — re-centre the map and set CENTER before anything else.
+            // syncPositionToServer() is intentionally NOT called here: the child hasn't
+            // paired yet, so sending default coordinates would show a stale marker on the
+            // parent dashboard and trigger false geofence alerts.
             initChildGPSCenter(() => {
                 updateProgressUI();
                 updateView();
-                syncPositionToServer();
                 setInterval(updateView, 5000);
                 simIntervalId = setInterval(simulateChildMovement, MOVE_INTERVAL_MS);
                 document.getElementById('label-sim').classList.add('active-label');
