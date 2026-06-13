@@ -1297,13 +1297,7 @@
             try {
                 const xpRes  = await fetch(`${API}/child/xp?kidName=${encodeURIComponent(name)}`);
                 const xpData = await xpRes.json();
-                if (xpData.matched && xpData.xpPoints > 0) {
-                    totalPoints         = xpData.xpPoints;
-                    _totalPointsAllTime = Math.max(_totalPointsAllTime, xpData.xpPoints);
-                    localStorage.setItem('safestep_points',      String(totalPoints));
-                    localStorage.setItem('safestep_total_points', String(_totalPointsAllTime));
-                    updateProgressUI();
-                }
+                _applyAccountXPFromServer(xpData);
             } catch (_) { /* server unreachable — use localStorage XP */ }
             _buildAvatarGrid();
         }
@@ -1420,12 +1414,7 @@
                 try {
                     const xpRes  = await fetch(`${API}/child/xp?kidName=${encodeURIComponent(name)}`);
                     const xpData = await xpRes.json();
-                    if (xpData.matched && xpData.xpPoints > 0) {
-                        totalPoints         = xpData.xpPoints;
-                        _totalPointsAllTime = Math.max(_totalPointsAllTime, xpData.xpPoints);
-                        localStorage.setItem('safestep_points',      String(totalPoints));
-                        localStorage.setItem('safestep_total_points', String(_totalPointsAllTime));
-                    }
+                    _applyAccountXPFromServer(xpData);
                 } catch (_) { /* ignore — use locally accumulated XP */ }
 
                 const setupEl = document.getElementById('setup-container');
@@ -1482,6 +1471,18 @@
             updateChildStats();
             // Fire-and-forget: persist XP to backend so it survives a page reload
             _syncXPToServer();
+        }
+
+        function _applyAccountXPFromServer(xpData) {
+            if (!xpData || !xpData.matched) return;
+            const serverXp = xpData.xpPoints || 0;
+            const merged   = Math.max(totalPoints, serverXp);
+            if (merged === totalPoints && serverXp === totalPoints) return;
+            totalPoints         = merged;
+            _totalPointsAllTime = Math.max(_totalPointsAllTime, merged);
+            localStorage.setItem('safestep_points',       String(totalPoints));
+            localStorage.setItem('safestep_total_points', String(_totalPointsAllTime));
+            updateProgressUI();
         }
 
         function _syncXPToServer() {
@@ -2094,12 +2095,8 @@
 
             await syncMissionFromServer();
             missionActive = missionActive || allNodes.some(n => !isNodeVisited(n));
-            if (allNodes.length === 0) {
-                totalPoints = 0;
-                localStorage.setItem('safestep_points', '0');
-                updateChildStats();
-            }
-            updateChildSafeZone();   // redraw green safe zone from current checkpoints
+            // Route cleared (0 nodes) — reset mission progress only; never touch account XP.
+            updateChildSafeZone();
             renderCheckpointMarkers();
             updateProgressUI();
             renderCards();
@@ -2180,7 +2177,7 @@
             const bonusEl = document.getElementById('accomplished-xp-bonus');
             const totalEl = document.getElementById('accomplished-xp-total');
             if (bonusEl) bonusEl.textContent = '+500 XP Bonus';
-            if (totalEl) totalEl.textContent = `Total Session XP: ${totalPoints} XP`;
+            if (totalEl) totalEl.textContent = `Current Score: ${totalPoints} XP`;
 
             confetti({ particleCount: 320, spread: 110, origin: { y: 0.52 } });
             setTimeout(() => confetti({ particleCount: 160, spread: 80, origin: { x: 0.15, y: 0.6 } }), 600);
@@ -2195,16 +2192,36 @@
             updateProgressUI();
         }
 
+        /** Clears only the active route on the map — XP, avatar, and pairing stay intact. */
+        function _clearRouteViewOnly() {
+            allNodes = [];
+            currentStep = null;
+            checkpointMarkers.forEach(m => map.removeLayer(m));
+            checkpointMarkers.length = 0;
+            updateChildSafeZone();
+            renderCheckpointMarkers();
+            renderCards();
+            updateProgressUI();
+        }
+
         async function waitForNewMission() {
             document.getElementById('mission-accomplished').classList.remove('show');
             waitingMode           = true;
             missionCompletedShown = false;
             successSent           = false;
-            currentStep           = null;
             missionActive         = false;
+            dangerSent            = false;
+            dangerSpoken          = false;
+            setRadarState(false);
+            stopAlarmBeep();
+
+            _clearRouteViewOnly();
+
             document.getElementById('safebot-msg').innerHTML =
                 '<strong>SafeBot:</strong> Waiting for a new mission...';
             speakSafeBot('Waiting for a new mission.', 'en-US');
+
+            _syncXPToServer();
 
             const poll = async () => {
                 await updateView();
@@ -2212,6 +2229,7 @@
                 if (hasActive) {
                     waitingMode   = false;
                     missionActive = true;
+                    missionStarted = true;
                     speakSafeBot('New mission detected. Starting!', 'en-US');
                     return;
                 }
@@ -2227,14 +2245,16 @@
             const _savedXp       = localStorage.getItem('safestep_points');
             const _savedXpTotal  = localStorage.getItem('safestep_total_points');
             const _savedMissions = localStorage.getItem('safestep_missions');
+            const _savedAvatar   = localStorage.getItem('kid_avatar');
 
             localStorage.clear();
             sessionStorage.clear();
 
-            // Restore XP keys immediately after the clear
+            // Restore account progression keys (XP + equipped avatar inventory)
             if (_savedXp)       localStorage.setItem('safestep_points',       _savedXp);
             if (_savedXpTotal)  localStorage.setItem('safestep_total_points',  _savedXpTotal);
             if (_savedMissions) localStorage.setItem('safestep_missions',       _savedMissions);
+            if (_savedAvatar)   localStorage.setItem('kid_avatar',              _savedAvatar);
 
             totalPoints         = parseInt(_savedXp       || '0', 10);
             _totalPointsAllTime = parseInt(_savedXpTotal  || String(totalPoints), 10);

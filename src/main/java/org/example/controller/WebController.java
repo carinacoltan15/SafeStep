@@ -316,15 +316,14 @@ public class WebController {
         missionActive         = false;
         alertHistory.clear();
         nodeRepository.deleteAll();
-        // Keep child name / avatar / session so the child stays paired without re-setup.
-        // Only reset the mission-level state.
-        liveChild.xpPoints  = 0;          // XP resets per new mission day
+        // Keep child name, avatar, session, and lifetime XP — route-only reset.
         liveChild.updatedAt = Instant.now().toEpochMilli();
 
         Map<String, Object> body = new HashMap<>();
         body.put("success",       true);
         body.put("message",       "Route cleared. Ready for a new mission.");
         body.put("missionActive", false);
+        body.put("xpPoints",      liveChild.xpPoints);
         return ResponseEntity.ok(body);
     }
 }
