@@ -251,6 +251,50 @@
             background: rgba(168, 85, 247, 0.07);
             box-shadow: 0 0 14px rgba(0,255,255,0.14);
         }
+        .btn-new-mission {
+            width: calc(100% - 24px);
+            margin: 8px 12px 2px;
+            padding: 12px;
+            font-size: 0.78rem;
+            font-weight: 900;
+            letter-spacing: 0.4px;
+            background: linear-gradient(135deg, rgba(0,230,118,0.14), rgba(0,188,212,0.10));
+            border: 1px solid rgba(0, 230, 118, 0.32);
+            color: #86efac;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            display: none; /* shown when mission reaches 100% */
+        }
+        .btn-new-mission.visible { display: block; }
+        .btn-new-mission:hover {
+            background: linear-gradient(135deg, rgba(0,230,118,0.22), rgba(0,188,212,0.16));
+            border-color: rgba(0, 230, 118, 0.55);
+            color: #00e676;
+            box-shadow: 0 0 18px rgba(0,230,118,0.22);
+            transform: translateY(-1px);
+        }
+        /* Completed badge in the mission-secured overlay */
+        .secured-actions {
+            display: flex; flex-direction: column; gap: 10px; margin-top: 28px;
+        }
+        .secured-btn-secondary {
+            padding: 12px 36px;
+            border: 1px solid rgba(0, 230, 118, 0.28);
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            color: rgba(0, 230, 118, 0.75);
+            background: transparent;
+            transition: var(--transition);
+            letter-spacing: 0.3px;
+        }
+        .secured-btn-secondary:hover {
+            border-color: rgba(0, 230, 118, 0.50);
+            color: #00e676;
+            background: rgba(0, 230, 118, 0.06);
+        }
 
         /* Section heading inside panel */
         .section-hint {
@@ -397,12 +441,19 @@
     <div id="mission-secured-overlay" role="dialog" aria-modal="true" aria-labelledby="secured-title-el">
         <div class="secured-card">
             <div class="secured-eyebrow">MISSION STATUS</div>
-            <div class="secured-title" id="secured-title-el">Mission Secured</div>
+            <div class="secured-title" id="secured-title-el">Mission Secured &#x1F3C6;</div>
             <div class="secured-divider"></div>
             <div class="secured-msg" id="secured-msg">
                 Your child has successfully accomplished the mission and arrived safely at the final destination.
             </div>
-            <button class="secured-btn" type="button" onclick="acknowledgeMission()">Acknowledge &amp; Clear</button>
+            <div class="secured-actions">
+                <button class="secured-btn" type="button" onclick="startNewMission()">
+                    &#x1F680; Start New Mission
+                </button>
+                <button class="secured-btn-secondary" type="button" onclick="acknowledgeMission()">
+                    Acknowledge &amp; Keep Current Route
+                </button>
+            </div>
         </div>
     </div>
 
@@ -419,6 +470,10 @@
             <div class="nav-item"        data-view="alerts" onclick="switchView('alerts')">Mission Logs &amp; Alerts</div>
 
             <div style="flex:1"></div>
+            <button type="button" id="btn-new-mission-sidebar"
+                    class="btn-new-mission" onclick="startNewMission()">
+                &#x1F680; Start New Mission
+            </button>
             <button type="button" class="btn-reset-demo" onclick="resetDemo()">Reset Demo Data</button>
             <p class="sidebar-account" id="parent-email-label"></p>
         </aside>
@@ -941,12 +996,66 @@
                 : 'Your child has successfully accomplished the mission and arrived safely at the final destination.';
 
             document.getElementById('mission-secured-overlay').classList.add('show');
+
+            // Mission success immediately cancels any active danger visuals
+            document.getElementById('danger-overlay').classList.remove('visible');
+            document.getElementById('hud-alert').style.display = 'none';
+            document.getElementById('hud-alert').classList.remove('danger');
+            _setZoneStyle('#22c55e');
+            _setPulse(false);
+            _lastDangerState = 'safe';
         }
 
         async function acknowledgeMission() {
             document.getElementById('mission-secured-overlay').classList.remove('show');
             try { await fetch(`${API}/parent/clear-success`, { method: 'POST' }); } catch (e) { /* ignore */ }
             successModalOpen = false;
+        }
+
+        async function startNewMission() {
+            document.getElementById('mission-secured-overlay').classList.remove('show');
+            successModalOpen = false;
+            try {
+                await fetch(`${API}/routes/reset-active`, { method: 'POST' });
+            } catch (e) {
+                showBanner('Serverul este inaccesibil. Verificati conexiunea.', 'warning', 4000);
+                return;
+            }
+
+            // Reset all local mission state
+            checkpointCoords = [];
+            checkpointIndex  = 0;
+            _lastChildLat    = null;
+            _lastChildLng    = null;
+            _parentMapCenteredOnChild = false;
+            _lastDangerState = null;
+
+            // Clear the route list and safe-zone circles
+            document.getElementById('steps-preview').innerHTML = '';
+            checkpointCircleLayers.forEach(c => parentMap.removeLayer(c));
+            checkpointCircleLayers = [];
+            if (safeZoneLayer) { parentMap.removeLayer(safeZoneLayer); safeZoneLayer = null; }
+            safeZoneCircle = null;
+
+            // Clear any danger/success HUD state
+            document.getElementById('danger-overlay').classList.remove('visible');
+            document.getElementById('hud-alert').style.display = 'none';
+            document.getElementById('hud-alert').classList.remove('danger');
+            _setZoneStyle('#22c55e');
+            _setPulse(false);
+            document.getElementById('hud-mission').textContent  = 'Mission: inactive';
+            document.getElementById('hud-progress').textContent = 'Progress: 0%';
+            document.getElementById('hud-child').textContent    = 'Child: —';
+
+            // Hide the "Start New Mission" sidebar button until the next completion
+            const sideBtn = document.getElementById('btn-new-mission-sidebar');
+            if (sideBtn) sideBtn.classList.remove('visible');
+
+            showBanner('Ruta noua activata. Adaugati noi checkpoint-uri.', 'success', 3500);
+            switchView('route');
+
+            // Generate a fresh pairing code automatically for the new mission
+            try { await getCode(); } catch (_) { /* ignore */ }
         }
 
         async function resetDangerAlert() {
@@ -1015,8 +1124,23 @@
             try {
                 const res  = await fetch(`${API}/mission/progress`);
                 const data = await res.json();
-                document.getElementById('hud-progress').textContent =
-                    `Progress: ${data.progressPercent || 0}% (${data.visitedCount || 0}/${data.totalCount || 0})`;
+                const pct     = data.progressPercent || 0;
+                const visited = data.visitedCount    || 0;
+                const total   = data.totalCount      || 0;
+                const chip    = document.getElementById('hud-progress');
+                const sideBtn = document.getElementById('btn-new-mission-sidebar');
+
+                if (total > 0 && pct >= 100) {
+                    chip.textContent = `Mission Complete! 100% (${visited}/${total})`;
+                    chip.style.color = '#00e676';
+                    chip.style.borderColor = 'rgba(0,230,118,0.40)';
+                    if (sideBtn) sideBtn.classList.add('visible');
+                } else {
+                    chip.textContent = `Progress: ${pct}% (${visited}/${total})`;
+                    chip.style.color = '';
+                    chip.style.borderColor = '';
+                    if (sideBtn) sideBtn.classList.remove('visible');
+                }
             } catch (e) { /* ignore */ }
         }
 

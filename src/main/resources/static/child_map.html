@@ -646,12 +646,28 @@
             color: rgba(255,255,255,0.78);
             line-height: 1.6;
         }
+        .accomplished-emoji {
+            font-size: 3.2rem;
+            margin-bottom: 6px;
+            animation: trophyBounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        @keyframes trophyBounce {
+            from { opacity: 0; transform: scale(0.4); }
+            to   { opacity: 1; transform: scale(1);   }
+        }
         .accomplished-xp {
-            margin-top: 16px;
-            font-size: 1.5rem;
+            margin-top: 14px;
+            font-size: 1.3rem;
             font-weight: 900;
             color: #00e676;
             text-shadow: 0 0 18px rgba(0, 230, 118, 0.45);
+        }
+        .accomplished-xp-total {
+            margin-top: 6px;
+            font-size: 1.0rem;
+            font-weight: 700;
+            color: rgba(0, 230, 118, 0.65);
+            letter-spacing: 0.3px;
         }
         .accomplished-btn {
             margin-top: 24px;
@@ -1002,15 +1018,19 @@
 
     </div>
 
-    <!-- Mission Accomplished overlay (child view) -->
+    <!-- Mission Complete overlay (child view) -->
     <div id="mission-accomplished">
         <div class="accomplished-card">
-            <div class="accomplished-title">MISSION ACCOMPLISHED</div>
+            <div class="accomplished-emoji">&#x1F3C6;</div>
+            <div class="accomplished-title">MISSION COMPLETE!</div>
             <div class="accomplished-msg" id="accomplished-msg">
                 Great job! You reached your destination safely.
             </div>
-            <div class="accomplished-xp">+500 XP</div>
-            <button class="accomplished-btn" type="button" onclick="finishAndClose()">Finish &amp; Close</button>
+            <div class="accomplished-xp" id="accomplished-xp-bonus">+500 XP Bonus</div>
+            <div class="accomplished-xp-total" id="accomplished-xp-total"></div>
+            <button class="accomplished-btn" type="button" onclick="waitForNewMission()">
+                &#x1F389; Great! Wait for Next Mission
+            </button>
         </div>
     </div>
 
@@ -2127,12 +2147,14 @@
                 await new Promise(r => setTimeout(r, 450));
             }
             currentStep = null;
-            // Keep childPos at last known position instead of resetting to a hardcoded center
             rebuildChildMarker();
             await updateView();
             updateProgressUI();
-            // Primary trigger: show accomplished if this was the last checkpoint
+            // Primary trigger: show accomplished if this was the last checkpoint.
+            // Reset danger bookkeeping first so the celebration never shows a red state.
             if (allNodes.length > 0 && allNodes.every(isNodeVisited) && !missionCompletedShown) {
+                dangerSent   = false;
+                dangerSpoken = false;
                 showMissionAccomplished();
             }
         }
@@ -2142,28 +2164,35 @@
             missionCompletedShown = true;
             _addPoints(500);
 
-            // Child-facing message: direct, game-style congratulation
-            const name = (getStoredChildName() || kidName || '').trim();
-            document.getElementById('accomplished-msg').textContent =
-                name
-                    ? `Great job, ${name}! You reached your destination safely. You earned +500 XP!`
-                    : 'Great job! You reached your destination safely. You earned +500 XP!';
+            // Force radar + vignette back to safe — mission is finished, no danger.
+            dangerSent   = false;
+            dangerSpoken = false;
+            setRadarState(false);
+            stopAlarmBeep();
 
-            confetti({ particleCount: 300, spread: 100, origin: { y: 0.55 } });
+            // Child-facing message
+            const name = (getStoredChildName() || kidName || '').trim();
+            document.getElementById('accomplished-msg').textContent = name
+                ? `Amazing, ${name}! You completed every checkpoint and arrived safely!`
+                : 'Amazing! You completed every checkpoint and arrived safely!';
+
+            // Show the +500 bonus and the live cumulative total
+            const bonusEl = document.getElementById('accomplished-xp-bonus');
+            const totalEl = document.getElementById('accomplished-xp-total');
+            if (bonusEl) bonusEl.textContent = '+500 XP Bonus';
+            if (totalEl) totalEl.textContent = `Total Session XP: ${totalPoints} XP`;
+
+            confetti({ particleCount: 320, spread: 110, origin: { y: 0.52 } });
+            setTimeout(() => confetti({ particleCount: 160, spread: 80, origin: { x: 0.15, y: 0.6 } }), 600);
+            setTimeout(() => confetti({ particleCount: 160, spread: 80, origin: { x: 0.85, y: 0.6 } }), 900);
             speakSafeBot(
-                name
-                    ? `Mission accomplished, ${name}! Congratulations!`
-                    : 'Mission accomplished! Congratulations!',
+                name ? `Mission complete, ${name}! Congratulations!` : 'Mission complete! Congratulations!',
                 'en-US'
             );
             document.getElementById('mission-accomplished').classList.add('show');
-            // Notify server so the parent's dashboard picks up the success state
+            // Notify server so parent's dashboard picks up the success state
             triggerSuccessAlert();
             updateProgressUI();
-        }
-
-        function finishAndClose() {
-            document.getElementById('mission-accomplished').classList.remove('show');
         }
 
         async function waitForNewMission() {

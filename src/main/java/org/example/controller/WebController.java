@@ -230,6 +230,8 @@ public class WebController {
     @PostMapping("/parent/alert-success")
     public ResponseEntity<Map<String, Object>> alertSuccess(@RequestBody(required = false) Map<String, Object> payload) {
         isMissionAccomplished = true;
+        // A completed mission overrides any active danger — the child is safe at the destination.
+        isDangerActive = false;
         if (payload != null && payload.get("childName") != null) {
             liveChild.kidName = String.valueOf(payload.get("childName"));
         }
@@ -300,5 +302,29 @@ public class WebController {
     @GetMapping("/system/reset")
     public ResponseEntity<Map<String, Object>> systemResetGet() {
         return systemReset();
+    }
+
+    /**
+     * "Start New Mission / Reset for Tomorrow" — lighter than /system/reset.
+     * Clears nodes and mission state so the parent can define a brand-new route,
+     * but keeps parent accounts, pairing codes, and the child's session alive.
+     */
+    @PostMapping("/routes/reset-active")
+    public ResponseEntity<Map<String, Object>> resetActiveRoute() {
+        isDangerActive        = false;
+        isMissionAccomplished = false;
+        missionActive         = false;
+        alertHistory.clear();
+        nodeRepository.deleteAll();
+        // Keep child name / avatar / session so the child stays paired without re-setup.
+        // Only reset the mission-level state.
+        liveChild.xpPoints  = 0;          // XP resets per new mission day
+        liveChild.updatedAt = Instant.now().toEpochMilli();
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("success",       true);
+        body.put("message",       "Route cleared. Ready for a new mission.");
+        body.put("missionActive", false);
+        return ResponseEntity.ok(body);
     }
 }
